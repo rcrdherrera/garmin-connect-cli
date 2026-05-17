@@ -19,7 +19,7 @@ import json
 import sqlite3
 import sys
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from garminconnect import Garmin
@@ -145,7 +145,7 @@ def date_range(start: date, end: date):
 
 
 def now_iso() -> str:
-    return datetime.utcnow().isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 # ─── Garmin client ───────────────────────────────────────────────────────────
 
