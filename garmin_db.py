@@ -33,7 +33,7 @@ console = Console()
 
 TOKEN_DIR  = Path.home() / ".config" / "garmin-connect-cli" / "tokens"
 DB_PATH    = Path.home() / ".config" / "garmin-connect-cli" / "garmin.db"
-SYNC_START = date(2025, 4, 1)   # Earliest known Garmin data
+SYNC_START = date(2024, 5, 1)   # Garmin API retention limit (~2 years)
 API_DELAY  = 0.3                # Seconds between per-day API calls
 
 # ─── Schema ──────────────────────────────────────────────────────────────────

@@ -27,3 +27,15 @@ htmlcov/
 .vscode/
 *.swp
 .DS_Store
+
+# Garmin data — never commit personal health data or auth tokens
+*.db
+*.db-shm
+*.db-wal
+workouts_full.json
+tokens/
+garth_tokens/
+
+# Claude Code local settings
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
