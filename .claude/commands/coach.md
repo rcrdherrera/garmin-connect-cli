@@ -294,16 +294,82 @@ def workout(name, desc, sport, steps, duration_secs):
 
 ---
 
-## Step 6 — Upload and Verify
+## Step 6 — Upload, Schedule, and Save Plan
 
-After generating the script, run it and verify:
+After generating the script, upload each workout, schedule it to the calendar, and save the plan file.
+
+### 6a — Upload workouts
 
 ```python
 result = client.upload_workout(workout_dict)
-print(result.get("workoutId"))
+workout_id = result.get("workoutId")
+print("Uploaded:", workout_id)
 ```
 
-Then confirm workouts are live:
+### 6b — Schedule each workout to its target date
+
+Immediately after uploading, schedule the workout to its intended calendar date:
+
+```python
+schedule_result = client.garth.post(
+    "connectapi",
+    f"/workout-service/schedule/{workout_id}",
+    json={"date": "YYYY-MM-DD"},  # the session's target date
+    api=True
+).json()
+scheduled_id = schedule_result.get("scheduledWorkoutId")
+print("Scheduled ID:", scheduled_id)
+```
+
+**Date assignment rules for `weekly` plans:**
+- Today's readiness determines if today gets a session or is a rest day
+- Space running sessions every other day during Phase 1 (return to run)
+- Never schedule two hard sessions within 48h of each other
+- Strength sessions can follow easy runs on the same day or fill gaps
+
+### 6c — Save training_plan.json
+
+After all workouts are uploaded and scheduled, write the plan file:
+
+```python
+import json
+from pathlib import Path
+from datetime import date
+
+PLAN_FILE = Path.home() / ".config" / "garmin-connect-cli" / "training_plan.json"
+
+plan = {
+    "plan_version": 1,
+    "created_at": date.today().isoformat(),
+    "phase": CURRENT_PHASE,          # int: 1–5
+    "phase_name": PHASE_NAME,        # e.g. "Return to Run"
+    "week_start": WEEK_START,        # YYYY-MM-DD (Monday)
+    "week_end": WEEK_END,            # YYYY-MM-DD (Sunday)
+    "sessions": [
+        {
+            "date": "YYYY-MM-DD",
+            "day": "Monday",
+            "type": "easy_run",      # easy_run | moderate_run | hard_run | strength | rest
+            "intensity": "easy",     # easy | moderate | hard
+            "garmin_workout_id": workout_id,
+            "garmin_scheduled_id": scheduled_id,
+            "planned_km": 5.0,       # running sessions only
+            "planned_min": 35,
+            "planned_hr_ceiling": 162,  # bpm; running sessions only
+            "planned_rpe_max": 30,   # Garmin 0-100 scale
+            "notes": "Z2 only, 168 spm, flat route",
+            "completed": False,
+            "actual_activity_id": None
+        },
+        # ... one entry per session
+    ]
+}
+
+PLAN_FILE.write_text(json.dumps(plan, indent=2))
+print("Plan saved to", PLAN_FILE)
+```
+
+Then verify workouts appear on the calendar:
 
 ```python
 workouts = client.get_workouts(0, 10)

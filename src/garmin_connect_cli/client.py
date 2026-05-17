@@ -501,6 +501,63 @@ class GarminClient:
         self.ensure_authenticated()
         self.client.delete_weigh_ins(date_str)
 
+    # Workout scheduling methods
+    def schedule_workout(self, workout_id: int, date_str: str) -> dict[str, Any]:
+        """Schedule a workout to the Garmin calendar on a specific date.
+
+        Args:
+            workout_id: Garmin workout library ID (from upload_workout response)
+            date_str: Target date in YYYY-MM-DD format
+
+        Returns:
+            Response containing scheduledWorkoutId
+        """
+        self.ensure_authenticated()
+        url = f"/workout-service/schedule/{workout_id}"
+        return self.client.garth.post(
+            "connectapi", url, json={"date": date_str}, api=True
+        ).json()
+
+    def delete_scheduled_workout(self, scheduled_workout_id: int) -> None:
+        """Remove a workout from the Garmin calendar.
+
+        Args:
+            scheduled_workout_id: ID from the schedule response (not the workout library ID)
+        """
+        self.ensure_authenticated()
+        url = f"/workout-service/schedule/{scheduled_workout_id}"
+        self.client.garth.request("DELETE", "connectapi", url, api=True)
+
+    def get_activity_evaluation(self, activity_id: int) -> dict[str, Any]:
+        """Get post-workout self-evaluation (feel + RPE) for a completed activity.
+
+        Garmin stores the user's post-workout answers in summaryDTO.
+        Feel scale: 0=Terrible, 50=Normal, 75=Good, 100=Excellent
+        RPE scale: 0-100 (10=very easy, 30=easy, 50=moderate, 70=hard, 100=max)
+
+        Args:
+            activity_id: Garmin activity ID
+
+        Returns:
+            Dict with feel_raw, feel_label, rpe_raw, rpe_10 (normalized 0-10)
+        """
+        self.ensure_authenticated()
+        full = self.client.get_activity(activity_id)
+        summary = full.get("summaryDTO", {})
+        raw_feel = summary.get("directWorkoutFeel")
+        raw_rpe = summary.get("directWorkoutRpe")
+
+        feel_map = {0: "terrible", 25: "weak", 50: "normal", 75: "good", 100: "excellent"}
+        feel_label = feel_map.get(raw_feel) if raw_feel is not None else None
+
+        return {
+            "activityId": activity_id,
+            "feel_raw": raw_feel,
+            "feel": feel_label,
+            "rpe_raw": raw_rpe,
+            "rpe_10": round(raw_rpe / 10, 1) if raw_rpe is not None else None,
+        }
+
 
 def get_client(config: Config | None = None, profile: str | None = None) -> GarminClient:
     """Get a configured Garmin client.
