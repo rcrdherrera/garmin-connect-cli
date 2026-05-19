@@ -514,9 +514,7 @@ class GarminClient:
         """
         self.ensure_authenticated()
         url = f"/workout-service/schedule/{workout_id}"
-        return self.client.garth.post(
-            "connectapi", url, json={"date": date_str}, api=True
-        ).json()
+        return self.client.garth.post("connectapi", url, json={"date": date_str}, api=True).json()
 
     def delete_scheduled_workout(self, scheduled_workout_id: int) -> None:
         """Remove a workout from the Garmin calendar.
