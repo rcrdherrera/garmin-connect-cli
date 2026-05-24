@@ -23,6 +23,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from garminconnect import Garmin
 from pydantic import BaseModel
 
+from create_workouts import (
+    walk_run_protocol,
+    z2_easy_run,
+    lower_body_hip_glute,
+    upper_body_core,
+    full_body_posterior_chain,
+)
+
 # ── Config ────────────────────────────────────────────────────────────────────
 TOKEN_DIR    = Path.home() / ".config" / "garmin-connect-cli" / "tokens"
 DB_PATH      = Path.home() / ".config" / "garmin-connect-cli" / "garmin.db"
@@ -349,7 +357,88 @@ Provide a complete structured analysis:
 
 class CoachRequest(BaseModel):
     type: str = "weekly"
-    # Accepts: running | strength | lower-body | upper-body | full-body | weekly
+    upload: bool = False
+    # type accepts: running | strength | lower-body | upper-body | full-body | weekly
+
+
+# ── Workout upload helpers ─────────────────────────────────────────────────────
+
+def _build_sessions(session_type: str, readiness: int | None, today: date) -> list[tuple[dict, date]]:
+    """Return list of (workout_dict, target_date) pairs based on session type."""
+    run_fn = walk_run_protocol if (readiness is not None and readiness < 60) else z2_easy_run
+    strength_rotation = [lower_body_hip_glute, upper_body_core, full_body_posterior_chain]
+
+    if session_type == "running":
+        return [(run_fn(), today)]
+    if session_type == "lower-body":
+        return [(lower_body_hip_glute(), today)]
+    if session_type == "upper-body":
+        return [(upper_body_core(), today)]
+    if session_type in ("full-body", "strength"):
+        return [(full_body_posterior_chain(), today)]
+    if session_type == "weekly":
+        # Phase 1 pattern over next 7 days: Run / Strength / Run / Strength / Run / Strength / Rest
+        pattern = ["run", "strength", "run", "strength", "run", "strength", "rest"]
+        sessions: list[tuple[dict, date]] = []
+        strength_idx = 0
+        for i, day_type in enumerate(pattern):
+            target = today + timedelta(days=i)
+            if day_type == "run":
+                sessions.append((run_fn(), target))
+            elif day_type == "strength":
+                sessions.append((strength_rotation[strength_idx % 3](), target))
+                strength_idx += 1
+        return sessions
+    return []
+
+
+def _upload_and_schedule(g: Garmin, sessions: list[tuple[dict, date]]) -> list[dict]:
+    """Upload each workout to Garmin library and schedule it. Returns result list."""
+    results = []
+    for workout_dict, target_date in sessions:
+        entry: dict[str, Any] = {
+            "name": workout_dict.get("workoutName", "Unknown"),
+            "date": target_date.isoformat(),
+        }
+        try:
+            upload_result = g.upload_workout(workout_dict)
+            workout_id = upload_result.get("workoutId")
+            sched = g.garth.post(
+                "connectapi",
+                f"/workout-service/schedule/{workout_id}",
+                json={"date": target_date.isoformat()},
+                api=True,
+            ).json()
+            entry["workout_id"] = workout_id
+            entry["scheduled_id"] = sched.get("scheduledWorkoutId")
+        except Exception as e:
+            entry["error"] = str(e)
+        results.append(entry)
+    return results
+
+
+def _save_training_plan(uploaded: list[dict], today: date) -> None:
+    """Write training_plan.json with the uploaded session schedule."""
+    week_start = today - timedelta(days=today.weekday())
+    plan = {
+        "plan_version": 1,
+        "created_at": today.isoformat(),
+        "week_start": week_start.isoformat(),
+        "week_end": (week_start + timedelta(days=6)).isoformat(),
+        "sessions": [
+            {
+                "date": w["date"],
+                "name": w["name"],
+                "garmin_workout_id": w.get("workout_id"),
+                "garmin_scheduled_id": w.get("scheduled_id"),
+                "error": w.get("error"),
+                "completed": False,
+                "actual_activity_id": None,
+            }
+            for w in uploaded
+        ],
+    }
+    PLAN_PATH.write_text(json.dumps(plan, indent=2))
 
 
 @app.post("/coach", dependencies=[AUTH])
@@ -403,25 +492,37 @@ def coach(req: CoachRequest):
     _try("training_status", lambda: (g.get_training_status(today) or {}).get("trainingStatusPhrase"))
     _try("recent_activities", _recent)
 
+    # Upload workouts before generating the brief so Claude knows exactly what was scheduled
+    uploaded: list[dict] = []
+    if req.upload:
+        readiness_score = (live.get("readiness") or {}).get("score")
+        sessions = _build_sessions(req.type, readiness_score, date.today())
+        uploaded = _upload_and_schedule(g, sessions)
+        _save_training_plan(uploaded, date.today())
+
+    upload_context = ""
+    if uploaded:
+        lines = [f"  - {w['name']} → {w['date']}" + (f" [ERROR: {w['error']}]" if w.get("error") else " ✓ uploaded & scheduled") for w in uploaded]
+        upload_context = f"\n\nWORKOUTS UPLOADED TO GARMIN:\n" + "\n".join(lines) + "\n\nReference these exact workouts in your brief — they are already on the athlete's calendar."
+
     prompt = f"""Design a {req.type} training session/plan for today ({today}).
 
 TODAY'S PHYSIOLOGICAL STATE:
-{json.dumps(live, indent=2)}
+{json.dumps(live, indent=2)}{upload_context}
 
 1. Interpret readiness score + HRV — apply gate and override rules
 2. State current phase and what it allows/forbids today
-3. Design the session(s) with full detail: duration, structure, HR targets, cadence cues
-4. Assign specific dates if planning a full week
-5. Key cues the athlete must know before starting
-6. Red flags: when to stop or pull back
+3. {"Describe the uploaded sessions in detail: structure, HR targets, cadence cues, when to do each" if uploaded else "Design the session(s) with full detail: duration, structure, HR targets, cadence cues"}
+4. Key cues the athlete must know before starting
+5. Red flags: when to stop or pull back
 
 Be specific and practical. Coach talk, not textbook."""
 
     return {
         "date": today,
         "type": req.type,
-        "live_data": live,
         "brief": _ask_claude(_coach_system(), prompt, max_tokens=2048),
+        "uploaded_workouts": uploaded,
     }
 
 
