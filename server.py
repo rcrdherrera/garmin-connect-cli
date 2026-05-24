@@ -623,6 +623,75 @@ KEY CUE: [one specific thing to focus on next run]"""
     }
 
 
+# ── POST /chat ────────────────────────────────────────────────────────────────
+
+class ChatRequest(BaseModel):
+    message: str
+
+
+@app.post("/chat", dependencies=[AUTH])
+def chat(req: ChatRequest):
+    """Free-form coaching chat — ask your AI coach anything."""
+    today = date.today().isoformat()
+
+    # Best-effort live metrics for context
+    live_context = ""
+    try:
+        g = _garmin()
+        live: dict[str, Any] = {}
+        try:
+            r = g.get_training_readiness(today) or {}
+            live["readiness"] = {"score": r.get("readinessScore"), "level": r.get("readinessLevel")}
+        except Exception:
+            pass
+        try:
+            s = (g.get_hrv_data(today) or {}).get("hrvSummary", {})
+            live["hrv"] = {
+                "last_night": s.get("lastNightAvg"),
+                "weekly_avg": s.get("weeklyAvg"),
+                "status": s.get("status"),
+            }
+        except Exception:
+            pass
+        try:
+            live["rhr"] = (g.get_heart_rates(today) or {}).get("restingHeartRate")
+        except Exception:
+            pass
+        try:
+            bb = g.get_body_battery(today)
+            if bb and isinstance(bb, list):
+                levels = [x["bodyBatteryLevel"] for x in bb if x.get("bodyBatteryLevel") is not None]
+                if levels:
+                    live["body_battery"] = levels[-1]
+        except Exception:
+            pass
+        if live:
+            live_context = f"\n\nTODAY'S METRICS:\n{json.dumps(live, indent=2)}"
+    except Exception:
+        pass
+
+    system = f"""You are a world-class running coach and sports scientist. Athlete context:
+
+{_athlete_context}
+
+Today: {today}{live_context}
+
+You have deep knowledge of evidence-based training principles (Seiler polarization, Lydiard, Maffetone),
+injury prevention and return-to-run protocols, HRV interpretation (Kiviniemi protocol), running
+biomechanics, nutrition for endurance athletes, and periodization.
+
+Be direct and practical — this is a coach-athlete conversation, not a textbook.
+Keep answers focused and actionable. Use clear structure when helpful."""
+
+    resp = _claude.messages.create(
+        model="claude-opus-4-7",
+        max_tokens=1024,
+        system=system,
+        messages=[{"role": "user", "content": req.message}],
+    )
+    return {"response": resp.content[0].text}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("server:app", host="0.0.0.0", port=PORT, reload=False)
