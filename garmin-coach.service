@@ -5,11 +5,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=ubuntu
-Group=ubuntu
-WorkingDirectory=/opt/garmin-coach
-EnvironmentFile=/opt/garmin-coach/.env
-ExecStart=/home/ubuntu/.local/bin/uv run python server.py
+User=ricardo
+Group=ricardo
+WorkingDirectory=/opt/garmin-connect-cli
+EnvironmentFile=/opt/garmin-connect-cli/.env
+ExecStart=/home/ricardo/.local/bin/uv run python server.py
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

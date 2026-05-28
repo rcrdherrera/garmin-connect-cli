@@ -18,13 +18,13 @@ jobs:
     steps:
       - name: Pull latest code
         run: |
-          cd /opt/garmin-coach
+          cd /opt/garmin-connect-cli
           git fetch origin
           git reset --hard origin/main
 
       - name: Sync dependencies
         run: |
-          cd /opt/garmin-coach
+          cd /opt/garmin-connect-cli
           uv sync --extra server
 
       - name: Restart service
