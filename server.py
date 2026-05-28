@@ -185,11 +185,14 @@ def get_status():
         }
 
     def _readiness():
-        r = g.get_training_readiness(today) or {}
+        resp = g.get_training_readiness(today)
+        if not resp:
+            return None
+        r = resp[0] if isinstance(resp, list) else resp
         return {
-            "score": r.get("readinessScore"),
-            "level": r.get("readinessLevel"),
-            "feedback": r.get("readinessFeedbackPhrase"),
+            "score": r.get("score") or r.get("readinessScore"),
+            "level": r.get("level") or r.get("readinessLevel"),
+            "feedback": r.get("feedbackShort") or r.get("readinessFeedbackPhrase"),
         }
 
     def _sleep():
@@ -579,8 +582,11 @@ def coach(req: CoachRequest):
             live[key] = None
 
     def _readiness():
-        r = g.get_training_readiness(today) or {}
-        return {"score": r.get("readinessScore"), "level": r.get("readinessLevel")}
+        resp = g.get_training_readiness(today)
+        if not resp:
+            return None
+        r = resp[0] if isinstance(resp, list) else resp
+        return {"score": r.get("score") or r.get("readinessScore"), "level": r.get("level") or r.get("readinessLevel")}
 
     def _hrv():
         s = (g.get_hrv_data(today) or {}).get("hrvSummary", {})
