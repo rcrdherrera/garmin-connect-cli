@@ -22,7 +22,6 @@ Wants=network-online.target
 Type=oneshot
 User=${SERVICE_USER}
 WorkingDirectory=${INSTALL_DIR}
-EnvironmentFile=${INSTALL_DIR}/.env
 ExecStart=${INSTALL_DIR}/.venv/bin/python ${INSTALL_DIR}/garmin_db.py sync
 StandardOutput=journal
 StandardError=journal
