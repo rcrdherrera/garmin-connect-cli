@@ -156,11 +156,14 @@ def get_status():
     today = date.today().isoformat()
     result: dict[str, Any] = {"date": today}
 
+    errors: list[str] = []
+
     def _try(key: str, fn):
         try:
             result[key] = fn()
-        except Exception:
+        except Exception as exc:
             result[key] = None
+            errors.append(f"{key}: {type(exc).__name__}: {exc}")
 
     def _body_battery():
         bb = g.get_body_battery(today)
@@ -208,6 +211,12 @@ def get_status():
     _try("sleep", _sleep)
     _try("rhr", lambda: (g.get_heart_rates(today) or {}).get("restingHeartRate"))
     _try("stress", lambda: (g.get_stress_data(today) or {}).get("overallStressLevel"))
+
+    if errors:
+        print(f"[status] {today} — {len(errors)} fetch error(s):")
+        for e in errors:
+            print(f"  {e}")
+        result["_errors"] = errors
 
     return result
 
