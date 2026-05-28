@@ -50,7 +50,7 @@ _athlete_context: str = ""
 
 
 def _load_athlete_context() -> str:
-    files = ["training_history.md", "hr_zones.md", "race_goals_2026.md"]
+    files = ["training_history.md", "hr_zones.md", "race_goals_2026.md", "home_gym_equipment.md"]
     parts = []
     for fname in files:
         p = MEMORY_DIR / fname
@@ -216,7 +216,46 @@ def get_status():
 
 @app.get("/activities", dependencies=[AUTH])
 def get_activities(limit: int = 20):
-    """Recent activities list."""
+    """Recent activities with HR zone data — SQLite-first, Garmin API fallback."""
+    try:
+        conn = _db()
+        rows = _rows(conn.execute("""
+            SELECT activity_id, activity_name, activity_type,
+                   distance_m, duration_s, avg_hr, max_hr, avg_cadence,
+                   aerobic_te, training_load, calories, avg_speed_ms,
+                   hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s,
+                   start_time_local
+            FROM activities ORDER BY start_time_local DESC LIMIT ?
+        """, (limit,)).fetchall())
+        conn.close()
+        if rows:
+            return [
+                {
+                    "activityId": r["activity_id"],
+                    "name": r["activity_name"],
+                    "type": r["activity_type"],
+                    "distance_km": round((r["distance_m"] or 0) / 1000, 2),
+                    "duration_min": round((r["duration_s"] or 0) / 60, 1),
+                    "startTimeLocal": r["start_time_local"],
+                    "averageHR": r["avg_hr"],
+                    "maxHR": r["max_hr"],
+                    "avgCadence": r["avg_cadence"],
+                    "calories": r["calories"],
+                    "aerobicTE": r["aerobic_te"],
+                    "trainingLoad": r["training_load"],
+                    "avgSpeedMs": r["avg_speed_ms"],
+                    "hrZ1s": r["hr_z1_s"],
+                    "hrZ2s": r["hr_z2_s"],
+                    "hrZ3s": r["hr_z3_s"],
+                    "hrZ4s": r["hr_z4_s"],
+                    "hrZ5s": r["hr_z5_s"],
+                }
+                for r in rows
+            ]
+    except Exception:
+        pass
+
+    # Fallback to live Garmin API (no HR zone data)
     g = _garmin()
     acts = g.get_activities(start=0, limit=limit)
     return [
@@ -232,8 +271,13 @@ def get_activities(limit: int = 20):
             "duration_min": round((a.get("duration") or 0) / 60, 1),
             "startTimeLocal": a.get("startTimeLocal"),
             "averageHR": a.get("averageHR"),
+            "maxHR": None,
+            "avgCadence": a.get("averageRunningCadenceInStepsPerMinute"),
             "calories": a.get("calories"),
-            "elevationGain": a.get("elevationGain"),
+            "aerobicTE": a.get("aerobicTrainingEffect"),
+            "trainingLoad": a.get("activityTrainingLoad"),
+            "avgSpeedMs": None,
+            "hrZ1s": None, "hrZ2s": None, "hrZ3s": None, "hrZ4s": None, "hrZ5s": None,
         }
         for a in acts
     ]
@@ -247,6 +291,53 @@ def get_plan():
     if not PLAN_PATH.exists():
         return {"plan": None}
     return json.loads(PLAN_PATH.read_text(encoding="utf-8"))
+
+
+# ── GET /trends ──────────────────────────────────────────────────────────────
+
+@app.get("/trends", dependencies=[AUTH])
+def get_trends(days: int = 30):
+    """Historical daily snapshots from SQLite for iOS charting — no live Garmin API call."""
+    conn = _db()
+    health = _rows(conn.execute("""
+        SELECT date, hrv_last_night_avg, hrv_weekly_avg, hrv_status,
+               hrv_baseline_low, hrv_baseline_high,
+               sleep_score, sleep_duration_s, sleep_deep_s, sleep_rem_s,
+               rhr, body_battery_high, body_battery_low
+        FROM health_daily ORDER BY date DESC LIMIT ?
+    """, (days,)).fetchall())
+
+    training = _rows(conn.execute("""
+        SELECT date, readiness_score, readiness_level, acute_load
+        FROM training_daily ORDER BY date DESC LIMIT ?
+    """, (days,)).fetchall())
+    conn.close()
+
+    training_map = {r["date"]: r for r in training}
+    snapshots = []
+    for h in health:
+        d = h["date"]
+        t = training_map.get(d, {})
+        snapshots.append({
+            "date": d,
+            "hrv": h.get("hrv_last_night_avg"),
+            "hrv_weekly_avg": h.get("hrv_weekly_avg"),
+            "hrv_status": h.get("hrv_status"),
+            "hrv_baseline_low": h.get("hrv_baseline_low"),
+            "hrv_baseline_high": h.get("hrv_baseline_high"),
+            "sleep_score": h.get("sleep_score"),
+            "sleep_duration_h": round((h.get("sleep_duration_s") or 0) / 3600, 1),
+            "sleep_deep_h": round((h.get("sleep_deep_s") or 0) / 3600, 1),
+            "sleep_rem_h": round((h.get("sleep_rem_s") or 0) / 3600, 1),
+            "rhr": h.get("rhr"),
+            "body_battery_high": h.get("body_battery_high"),
+            "body_battery_low": h.get("body_battery_low"),
+            "readiness_score": t.get("readiness_score"),
+            "readiness_level": t.get("readiness_level"),
+            "acute_load": t.get("acute_load"),
+        })
+    snapshots.sort(key=lambda x: x["date"])
+    return {"snapshots": snapshots}
 
 
 # ── POST /analyze ─────────────────────────────────────────────────────────────
