@@ -58,7 +58,15 @@ class GarminClient:
         except Exception as e:
             print(f"error: Authentication failed: {e}", file=sys.stderr)
             print(
-                "Try running 'garmin-connect auth login' to re-authenticate.",
+                "Tokens may be expired. Re-authenticate with one of:",
+                file=sys.stderr,
+            )
+            print(
+                "  garmin-connect auth login          (username/password)",
+                file=sys.stderr,
+            )
+            print(
+                "  uv run python browser_auth.py      (if SSO is rate-limited)",
                 file=sys.stderr,
             )
             raise typer.Exit(2) from None
