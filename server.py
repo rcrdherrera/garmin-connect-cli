@@ -407,6 +407,9 @@ def analyze(req: AnalyzeRequest):
 
     conn.close()
 
+    if not health and not activities:
+        print(f"[analyze] WARNING: no health or activity data found for {start} to {end}")
+
     system = f"""You are a sports scientist and performance analyst.
 
 {_athlete_context}
@@ -415,7 +418,10 @@ Today: {date.today().isoformat()}
 
 Interpret data against Ricardo's specific context: PTT injury history, current phase, race goals,
 HRV baseline 83-103ms, LT1=162bpm, LT2=174bpm, cadence target 168-172spm.
-Apply Kiviniemi HRV protocol, Gabbett ACWR, Seiler polarization, Heiderscheit cadence research."""
+Apply Kiviniemi HRV protocol, Gabbett ACWR, Seiler polarization, Heiderscheit cadence research.
+
+FORMAT RULES: No emojis. No bullet-heavy lists. Use em-dash section headers. Be direct and specific.
+Write for an athlete who wants honest numbers and clear direction, not encouragement."""
 
     prompt = f"""Analyze training period: {start} to {end}
 
@@ -428,15 +434,31 @@ TRAINING READINESS (daily):
 ACTIVITIES:
 {json.dumps(activities, indent=2)}
 
-Provide a complete structured analysis:
-- Period Overview (data completeness, total days)
-- Physiological Readiness (HRV trend, RHR, Body Battery, Readiness distribution)
-- Sleep Quality (score trend, deep sleep adequacy, REM)
-- Training Load & Volume (km, weekly avg, zone distribution, ACWR context)
-- Running Mechanics (cadence distribution, pace/HR relationship)
-- Red Flags & Alerts (anything violating phase rules, injury risk signals)
-- Period Rating (one line) + 3 most actionable findings
-- Phase context: is the athlete on track? One specific recommendation for next 7 days"""
+Use this exact format:
+
+— PERIOD OVERVIEW —
+[dates, days with data, data completeness note if gaps exist]
+
+— PHYSIOLOGICAL READINESS —
+[HRV trend with numbers, RHR direction, Body Battery pattern, Readiness score distribution]
+
+— SLEEP —
+[score trend, duration avg, deep sleep adequacy vs 90-min target, REM]
+
+— TRAINING LOAD & VOLUME —
+[total km, weekly avg, zone distribution breakdown, ACWR if calculable]
+
+— RUNNING MECHANICS —
+[cadence numbers, pace/HR relationship, phase compliance]
+
+— RED FLAGS —
+[anything violating phase rules or signaling injury risk — state "None" if clean]
+
+— VERDICT —
+[one sentence period rating]
+
+— NEXT 7 DAYS —
+[one specific, concrete recommendation based on this data]"""
 
     return {
         "period": f"{start} to {end}",
@@ -601,13 +623,22 @@ def coach(req: CoachRequest):
 TODAY'S PHYSIOLOGICAL STATE:
 {json.dumps(live, indent=2)}{upload_context}
 
-1. Interpret readiness score + HRV — apply gate and override rules
-2. State current phase and what it allows/forbids today
-3. {"Describe the uploaded sessions in detail: structure, HR targets, cadence cues, when to do each" if uploaded else "Design the session(s) with full detail: duration, structure, HR targets, cadence cues"}
-4. Key cues the athlete must know before starting
-5. Red flags: when to stop or pull back
+Use this exact format. No emojis. Be direct:
 
-Be specific and practical. Coach talk, not textbook."""
+— READINESS GATE —
+[score X → gate tier: PRIME/OPTIMAL/MAINTENANCE/RECOVERY. HRV status + any override applied.]
+
+— PHASE STATUS —
+[Phase 1 day X of 21. What today allows and what is forbidden.]
+
+— SESSION DESIGN —
+[{"Describe each uploaded session: name, full structure, exact HR targets, cadence, timing" if uploaded else "Full session design: duration, structure, exact HR targets, cadence, intervals if any"}]
+
+— KEY CUES —
+[3 specific things to focus on — numbers, not vague advice]
+
+— RED FLAGS —
+[exact conditions to stop or pull back — be specific about HR numbers, pain signals]"""
 
     return {
         "date": today,
