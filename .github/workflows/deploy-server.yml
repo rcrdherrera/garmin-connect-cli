@@ -3,12 +3,6 @@ name: Deploy Server
 on:
   push:
     branches: [main]
-    paths:
-      - 'server.py'
-      - 'create_workouts.py'
-      - 'src/**'
-      - 'pyproject.toml'
-      - 'uv.lock'
 
 jobs:
   deploy:
