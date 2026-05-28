@@ -1,0 +1,20 @@
+[Unit]
+Description=GarminCoach FastAPI server
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/garmin-coach
+EnvironmentFile=/opt/garmin-coach/.env
+ExecStart=/home/ubuntu/.local/bin/uv run python server.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=garmin-coach
+
+[Install]
+WantedBy=multi-user.target

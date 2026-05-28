@@ -1,0 +1,37 @@
+name: Deploy Server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server.py'
+      - 'create_workouts.py'
+      - 'src/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    timeout-minutes: 5
+
+    steps:
+      - name: Pull latest code
+        run: |
+          cd /opt/garmin-coach
+          git fetch origin
+          git reset --hard origin/main
+
+      - name: Sync dependencies
+        run: |
+          cd /opt/garmin-coach
+          uv sync --extra server
+
+      - name: Restart service
+        run: sudo systemctl restart garmin-coach
+
+      - name: Verify
+        run: |
+          sleep 2
+          systemctl is-active garmin-coach
+          echo "Server restarted successfully."
