@@ -12,9 +12,9 @@ User invoked with: `$ARGUMENTS`
 
 ---
 
-## Step 1 — Read Athlete Context (Memory)
+## Step 1 — Load All Context (run EVERYTHING in parallel)
 
-Before fetching live data, load the athlete's permanent context from memory. Run all reads in parallel:
+Fire all of these at once — memory reads and API calls are fully independent:
 
 ```
 Read: C:\Users\ricar\.claude\projects\C--garmin-connect-cli\memory\training_history.md
@@ -22,7 +22,13 @@ Read: C:\Users\ricar\.claude\projects\C--garmin-connect-cli\memory\hr_zones.md
 Read: C:\Users\ricar\.claude\projects\C--garmin-connect-cli\memory\race_goals_2026.md
 ```
 
-Key facts to extract:
+```bash
+uv run garmin-connect training readiness
+uv run garmin-connect training hrv --date-str <TODAY>
+uv run garmin-connect activities list --after <7_DAYS_AGO> --limit 20
+```
+
+Extract from memory:
 - Current injury status and any movement restrictions
 - HR zones (Z1–Z5 boundaries in bpm)
 - Pre-injury training baseline (volume, easy pace)
@@ -31,20 +37,7 @@ Key facts to extract:
 - **Upcoming race**: how many weeks to half marathon (2026-07-12) and marathon (2026-08-30)
 - Phase-specific volume targets, long run ceiling, intensity rules
 
----
-
-## Step 2 — Fetch Live Garmin Data
-
-Run all commands in parallel to get today's state:
-
-```bash
-uv run garmin-connect training readiness
-uv run garmin-connect training hrv --date-str <TODAY>
-uv run garmin-connect training status
-uv run garmin-connect activities list --after <7_DAYS_AGO> --limit 20
-```
-
-Extract these key signals:
+Extract from API:
 - `readiness.score` (0–100)
 - `readiness.level` (PRIME / OPTIMAL / etc.)
 - `hrv.hrvSummary.lastNightAvg` and `hrv.hrvSummary.status` (BALANCED / UNBALANCED / LOW)
@@ -53,7 +46,7 @@ Extract these key signals:
 
 ---
 
-## Step 3 — Coaching Decision Framework
+## Step 2 — Coaching Decision Framework
 
 ### 3a. Readiness Gate
 
@@ -106,7 +99,7 @@ PTT cleared by physio on 2026-05-16. No active injury. Conservative return-to-ru
 
 ---
 
-## Step 4 — Determine What to Build
+## Step 3 — Determine What to Build
 
 ### Argument-based selection
 - `running` → 1–2 running workouts appropriate to phase
@@ -157,20 +150,24 @@ Then apply the matching phase from `race_goals_2026.md`. Summary:
 
 ---
 
-## Step 5 — Build the Workouts (Python)
+## Step 4 — Build the Workouts (Python)
 
 Write a Python script at `C:\garmin-connect-cli\upload_session.py` using the patterns below. Then run it.
 
 ### Authentication
 
+Always use the GarminClient wrapper — it has a working `schedule_workout()` method.
+Do NOT use `garminconnect.Garmin()` directly; its schedule response does not parse correctly.
+
 ```python
-from pathlib import Path
-from garminconnect import Garmin
+import sys
+sys.path.insert(0, r"C:\garmin-connect-cli\src")
+from garmin_connect_cli.client import GarminClient
+from garmin_connect_cli.config import Config
 
-TOKEN_DIR = Path.home() / ".config" / "garmin-connect-cli" / "tokens"
-
-client = Garmin()
-client.login(str(TOKEN_DIR))
+config = Config.load()
+client = GarminClient(config)
+client.ensure_authenticated()
 ```
 
 ### Shared primitives (always include)
@@ -223,6 +220,10 @@ def _base_step(order, child, step_type, end_cond, end_val, target, desc, cat, na
 def ex_reps(order, child, reps, cat, name, desc=""):
     """Bodyweight strength exercise, rep-counted."""
     return _base_step(order, child, STEP_INTERVAL, REPS_COND, reps, NO_TARGET, desc, cat, name, -1.0)
+
+def ex_reps_w(order, child, reps, cat, name, weight_kg, desc=""):
+    """Weighted strength exercise, rep-counted. weight_kg = total load (e.g. 20.0 for 2×10kg KBs)."""
+    return _base_step(order, child, STEP_INTERVAL, REPS_COND, reps, NO_TARGET, desc, cat, name, weight_kg)
 
 def ex_time(order, child, secs, cat, name, desc=""):
     """Time-based exercise (plank, hold)."""
@@ -294,30 +295,25 @@ def workout(name, desc, sport, steps, duration_secs):
 
 ---
 
-## Step 6 — Upload, Schedule, and Save Plan
+## Step 5 — Upload, Schedule, and Save Plan
 
 After generating the script, upload each workout, schedule it to the calendar, and save the plan file.
 
 ### 6a — Upload workouts
 
 ```python
-result = client.upload_workout(workout_dict)
+result = client.client.upload_workout(workout_dict)
 workout_id = result.get("workoutId")
 print("Uploaded:", workout_id)
 ```
 
 ### 6b — Schedule each workout to its target date
 
-Immediately after uploading, schedule the workout to its intended calendar date:
+Use the wrapper method — it parses the response correctly:
 
 ```python
-schedule_result = client.garth.post(
-    "connectapi",
-    f"/workout-service/schedule/{workout_id}",
-    json={"date": "YYYY-MM-DD"},  # the session's target date
-    api=True
-).json()
-scheduled_id = schedule_result.get("scheduledWorkoutId")
+schedule_result = client.schedule_workout(workout_id, "YYYY-MM-DD")
+scheduled_id = schedule_result.get("workoutScheduleId")
 print("Scheduled ID:", scheduled_id)
 ```
 
@@ -369,19 +365,11 @@ PLAN_FILE.write_text(json.dumps(plan, indent=2))
 print("Plan saved to", PLAN_FILE)
 ```
 
-Then verify workouts appear on the calendar:
-
-```python
-workouts = client.get_workouts(0, 10)
-for w in workouts:
-    print(w["workoutId"], w["sportType"]["sportTypeKey"], w["workoutName"])
-```
-
 Tell the user to sync their Garmin watch via the Connect app.
 
 ---
 
-## Step 7 — Coaching Summary
+## Step 6 — Coaching Summary
 
 After uploading, give the user a concise coaching brief:
 
