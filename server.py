@@ -40,7 +40,7 @@ SERVER_TOKEN = os.environ.get("COACH_SERVER_TOKEN", "")
 PORT         = int(os.environ.get("COACH_PORT", "8765"))
 
 if not SERVER_TOKEN:
-    print("WARNING: COACH_SERVER_TOKEN not set — endpoints are unprotected")
+    raise RuntimeError("COACH_SERVER_TOKEN environment variable must be set before starting the server")
 
 # ── Anthropic client ──────────────────────────────────────────────────────────
 _claude = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
@@ -76,7 +76,7 @@ app.add_middleware(
 
 # ── Auth dependency ───────────────────────────────────────────────────────────
 def _auth(authorization: str = Header(default="")):
-    if SERVER_TOKEN and authorization != f"Bearer {SERVER_TOKEN}":
+    if authorization != f"Bearer {SERVER_TOKEN}":
         raise HTTPException(status_code=401, detail="Invalid or missing token")
 
 
@@ -795,4 +795,5 @@ Keep answers focused and actionable. Use clear structure when helpful."""
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=PORT, reload=False)
+    host = os.environ.get("COACH_HOST", "127.0.0.1")
+    uvicorn.run("server:app", host=host, port=PORT, reload=False)
