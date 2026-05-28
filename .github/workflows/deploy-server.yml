@@ -25,13 +25,13 @@ jobs:
       - name: Sync dependencies
         run: |
           cd /opt/garmin-connect-cli
-          uv sync --extra server
+          .venv/bin/pip install -e ".[server]" -q
 
       - name: Restart service
-        run: sudo systemctl restart garmin-coach
+        run: sudo systemctl restart garmincoach
 
       - name: Verify
         run: |
           sleep 2
-          systemctl is-active garmin-coach
+          systemctl is-active garmincoach
           echo "Server restarted successfully."

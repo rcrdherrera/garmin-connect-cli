@@ -1,20 +1,14 @@
 [Unit]
-Description=GarminCoach FastAPI server
+Description=GarminCoach REST API
 After=network.target
-Wants=network-online.target
 
 [Service]
-Type=simple
 User=ricardo
-Group=ricardo
 WorkingDirectory=/opt/garmin-connect-cli
-EnvironmentFile=/opt/garmin-connect-cli/.env
-ExecStart=/home/ricardo/.local/bin/uv run python server.py
-Restart=on-failure
+EnvironmentFile=/etc/garmincoach.env
+ExecStart=/opt/garmin-connect-cli/.venv/bin/python server.py
+Restart=always
 RestartSec=5
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=garmin-coach
 
 [Install]
 WantedBy=multi-user.target
