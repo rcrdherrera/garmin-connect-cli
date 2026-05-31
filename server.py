@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import os
@@ -60,6 +61,67 @@ def _load_athlete_context() -> str:
     return "\n\n---\n\n".join(parts)
 
 
+async def _today_data_poller():
+    """Poll Garmin every 5 minutes until today's readiness is in the DB.
+
+    Runs as a background task for the lifetime of the server.  Checks whether
+    today's readiness_score is populated in the DB; if not, triggers a sync.
+    Once data lands it goes quiet until the calendar date rolls over, so it
+    adapts automatically to any timezone and any watch-sync time.
+    """
+    POLL_INTERVAL = 300  # 5 minutes
+    populated_for: str | None = None   # date string for which we already have data
+
+    print("[poller] Started — checking every 5 min for today's Garmin data")
+
+    while True:
+        await asyncio.sleep(POLL_INTERVAL)
+        today = date.today().isoformat()
+
+        # Already confirmed data for today — wait for the date to roll over
+        if populated_for == today:
+            continue
+
+        try:
+            needs_sync = True
+            if DB_PATH.exists():
+                conn = sqlite3.connect(str(DB_PATH))
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    "SELECT readiness_score FROM training_daily WHERE date = ?",
+                    (today,),
+                ).fetchone()
+                conn.close()
+                if row and row["readiness_score"] is not None:
+                    needs_sync = False
+                    populated_for = today
+                    print(f"[poller] {today}: readiness={row['readiness_score']} — done for today")
+        except Exception as exc:
+            print(f"[poller] DB check error: {exc}")
+            needs_sync = False  # don't hammer on a broken DB
+
+        if not needs_sync:
+            continue
+
+        print(f"[poller] {today}: readiness missing — syncing from Garmin...")
+        try:
+            script = REPO_ROOT / "garmin_db.py"
+            result = await asyncio.to_thread(
+                subprocess.run,
+                [sys.executable, str(script), "sync", "--since", today],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                cwd=str(REPO_ROOT),
+            )
+            if result.returncode == 0:
+                print(f"[poller] {today}: sync OK")
+            else:
+                print(f"[poller] {today}: sync failed (exit {result.returncode}): {result.stderr[:200]}")
+        except Exception as exc:
+            print(f"[poller] {today}: sync error: {exc}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _athlete_context
@@ -67,7 +129,13 @@ async def lifespan(app: FastAPI):
     print(f"Athlete context loaded ({len(_athlete_context)} chars)")
     _ensure_conversation_tables()
     print("Conversation tables ready")
+    poller = asyncio.create_task(_today_data_poller())
     yield
+    poller.cancel()
+    try:
+        await poller
+    except asyncio.CancelledError:
+        pass
 
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────
