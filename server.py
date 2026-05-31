@@ -597,7 +597,7 @@ def get_status():
 
             if result.get("body_battery") is None and _h:
                 result["body_battery"] = {
-                    "current": None,
+                    "current": _h["body_battery_high"],   # day-high as best proxy when no live reading
                     "high": _h["body_battery_high"],
                     "low": _h["body_battery_low"],
                 }
@@ -750,8 +750,9 @@ def get_trends(days: int = 30):
 
 class AnalyzeRequest(BaseModel):
     period: str = "week"
-    # Accepts: week, last-week, month, last-month, year,
-    #          YYYY, YYYY-MM, YYYY-MM-DD:YYYY-MM-DD, YYYY-MM-DD
+    activity_type: str | None = None  # optional filter, e.g. "running", "strength_training"
+    # period accepts: week, last-week, month, last-month, year,
+    #                 YYYY, YYYY-MM, YYYY-MM-DD:YYYY-MM-DD, YYYY-MM-DD
 
 
 def _resolve_period(period: str) -> tuple[str, str]:
@@ -801,15 +802,27 @@ def analyze(req: AnalyzeRequest):
         FROM training_daily WHERE date BETWEEN ? AND ? ORDER BY date
     """, (start, end)).fetchall())
 
-    activities = _rows(conn.execute("""
-        SELECT start_time_local, activity_name, activity_type,
-               distance_m, duration_s, avg_hr, max_hr, avg_cadence,
-               aerobic_te, training_load,
-               hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s
-        FROM activities
-        WHERE start_time_local BETWEEN ? AND ?
-        ORDER BY start_time_local DESC
-    """, (f"{start}T00:00:00", f"{end}T23:59:59")).fetchall())
+    if req.activity_type:
+        activities = _rows(conn.execute("""
+            SELECT start_time_local, activity_name, activity_type,
+                   distance_m, duration_s, avg_hr, max_hr, avg_cadence,
+                   aerobic_te, training_load,
+                   hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s
+            FROM activities
+            WHERE start_time_local BETWEEN ? AND ?
+              AND activity_type LIKE ?
+            ORDER BY start_time_local DESC
+        """, (f"{start}T00:00:00", f"{end}T23:59:59", f"%{req.activity_type}%")).fetchall())
+    else:
+        activities = _rows(conn.execute("""
+            SELECT start_time_local, activity_name, activity_type,
+                   distance_m, duration_s, avg_hr, max_hr, avg_cadence,
+                   aerobic_te, training_load,
+                   hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s
+            FROM activities
+            WHERE start_time_local BETWEEN ? AND ?
+            ORDER BY start_time_local DESC
+        """, (f"{start}T00:00:00", f"{end}T23:59:59")).fetchall())
 
     conn.close()
 
@@ -869,9 +882,11 @@ Use this exact format:
     report = _ask_claude(system, prompt, max_tokens=2048)
 
     # Persist to conversation history
-    title = f"Analyze {start} – {end}"
+    type_label = f" · {req.activity_type}" if req.activity_type else ""
+    title = f"Analyze {start} – {end}{type_label}"
     conv_id = _create_conversation("analyze", title)
-    _add_message(conv_id, "user", f"Analyze training period {start} to {end}")
+    type_note = f" ({req.activity_type} only)" if req.activity_type else ""
+    _add_message(conv_id, "user", f"Analyze training period {start} to {end}{type_note}")
     _add_message(conv_id, "assistant", report)
 
     return {
@@ -887,6 +902,7 @@ Use this exact format:
 class CoachRequest(BaseModel):
     type: str = "weekly"
     upload: bool = False
+    conversation_id: int | None = None  # pass existing conv to avoid creating a duplicate on upload
     # type accepts: running | strength | lower-body | upper-body | full-body | weekly
 
 
@@ -1061,12 +1077,18 @@ Use this exact format. No emojis. Be direct:
 
     brief = _ask_claude(_coach_system(), prompt, max_tokens=2048)
 
-    # Persist to conversation history
+    # Persist to conversation history — reuse existing conv on upload to avoid duplicates
     session_label = req.type.replace("-", " ").title()
     title = f"{session_label} — {today}"
-    conv_id = _create_conversation("coach", title)
-    _add_message(conv_id, "user", f"Design a {req.type} training session for {today}")
-    _add_message(conv_id, "assistant", brief)
+    if req.conversation_id is not None:
+        conv_id = req.conversation_id
+        # Append updated brief (now includes upload context) as new assistant message
+        _add_message(conv_id, "assistant", brief)
+        _touch_conversation(conv_id)
+    else:
+        conv_id = _create_conversation("coach", title)
+        _add_message(conv_id, "user", f"Design a {req.type} training session for {today}")
+        _add_message(conv_id, "assistant", brief)
 
     return {
         "date": today,
