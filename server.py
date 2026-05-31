@@ -7,6 +7,7 @@ import json
 import math
 import os
 import sqlite3
+import subprocess
 import sys
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
@@ -360,6 +361,40 @@ Keep answers focused and actionable. Use clear structure when helpful."""
 def health_check():
     """Server liveness — no auth required."""
     return {"status": "ok", "date": date.today().isoformat()}
+
+
+# ── POST /sync ────────────────────────────────────────────────────────────────
+
+@app.post("/sync", dependencies=[AUTH])
+def sync_today():
+    """Sync yesterday + today from Garmin Connect into the SQLite DB.
+
+    Called by the iOS app when /status reports stale readiness or sleep data.
+    Runs garmin_db.py sync --since <yesterday> in a subprocess and blocks until
+    complete (up to 120 s).  Returns the sync result so the app can reload /status.
+    """
+    since = (date.today() - timedelta(days=1)).isoformat()
+    script = REPO_ROOT / "garmin_db.py"
+    try:
+        result = subprocess.run(
+            [sys.executable, str(script), "sync", "--since", since],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=str(REPO_ROOT),
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Sync timed out after 120 s")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Sync subprocess error: {exc}")
+
+    if result.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Sync failed (exit {result.returncode}): {result.stderr[:300]}",
+        )
+
+    return {"status": "ok", "synced_since": since}
 
 
 # ── GET /status ───────────────────────────────────────────────────────────────
