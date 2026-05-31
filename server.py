@@ -522,8 +522,13 @@ def get_status():
         dto = s.get("dailySleepDTO") or {}
         total = dto.get("sleepTimeSeconds") or 0
         scores = dto.get("sleepScores") or {}
+        # Garmin API returns overall.value, not totalScore
+        score = (
+            scores.get("totalScore")
+            or (scores.get("overall") or {}).get("value")
+        )
         return {
-            "score": scores.get("totalScore"),
+            "score": score,
             "duration_h": round(total / 3600, 1),
             "deep_h": round((dto.get("deepSleepSeconds") or 0) / 3600, 1),
             "rem_h": round((dto.get("remSleepSeconds") or 0) / 3600, 1),
@@ -543,10 +548,10 @@ def get_status():
             _conn = sqlite3.connect(str(DB_PATH))
             _conn.row_factory = sqlite3.Row
             _h = _conn.execute(
-                "SELECT * FROM health_daily ORDER BY date DESC LIMIT 1"
+                "SELECT * FROM health_daily WHERE sleep_score IS NOT NULL ORDER BY date DESC LIMIT 1"
             ).fetchone()
             _t = _conn.execute(
-                "SELECT * FROM training_daily ORDER BY date DESC LIMIT 1"
+                "SELECT * FROM training_daily WHERE readiness_score IS NOT NULL ORDER BY date DESC LIMIT 1"
             ).fetchone()
             _conn.close()
 
