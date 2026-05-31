@@ -394,7 +394,11 @@ def sync_today():
             detail=f"Sync failed (exit {result.returncode}): {result.stderr[:300]}",
         )
 
-    return {"status": "ok", "synced_since": since}
+    return {
+        "status": "ok",
+        "synced_since": since,
+        "output": (result.stdout or "")[-500:],  # last 500 chars for debug
+    }
 
 
 # ── GET /status ───────────────────────────────────────────────────────────────

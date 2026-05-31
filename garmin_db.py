@@ -264,7 +264,11 @@ def _fetch_health_day(client: Garmin, d: date) -> dict:
     try:
         sleep_resp = client.get_sleep_data(ds)
         sl = sleep_resp.get("dailySleepDTO") or {}
-        row["sleep_score"] = (sl.get("sleepScores") or {}).get("overall", {}).get("value")
+        scores = sl.get("sleepScores") or {}
+        row["sleep_score"] = (
+            scores.get("totalScore")
+            or (scores.get("overall") or {}).get("value")
+        )
         row["sleep_duration_s"] = sl.get("sleepTimeSeconds")
         row["sleep_deep_s"] = sl.get("deepSleepSeconds")
         row["sleep_rem_s"] = sl.get("remSleepSeconds")
@@ -348,11 +352,12 @@ def _fetch_training_day(client: Garmin, d: date) -> dict:
     row = {"date": ds, "synced_at": now_iso()}
     try:
         resp = client.get_training_readiness(ds)
-        if resp and isinstance(resp, list):
-            r = resp[0]
-            row["readiness_score"] = r.get("score")
-            row["readiness_level"] = r.get("level")
-            row["readiness_feedback"] = r.get("feedbackShort")
+        if resp:
+            # API returns a list for historical days, sometimes a dict for today
+            r = resp[0] if isinstance(resp, list) else resp
+            row["readiness_score"] = r.get("score") or r.get("readinessScore")
+            row["readiness_level"] = r.get("level") or r.get("readinessLevel")
+            row["readiness_feedback"] = r.get("feedbackShort") or r.get("readinessFeedbackPhrase")
             row["acute_load"] = r.get("acuteLoad")
             row["hrv_weekly_avg"] = r.get("hrvWeeklyAverage")
     except Exception:
