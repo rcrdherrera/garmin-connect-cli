@@ -256,8 +256,8 @@ def _fetch_health_day(client: Garmin, d: date) -> dict:
         baseline = s.get("baseline") or {}
         row["hrv_baseline_low"] = baseline.get("balancedLow")
         row["hrv_baseline_high"] = baseline.get("balancedUpper")
-    except Exception:
-        pass
+    except Exception as exc:
+        console.print(f"  [yellow]hrv {ds}: {type(exc).__name__}: {exc}[/yellow]")
     time.sleep(API_DELAY)
 
     # Sleep
@@ -274,8 +274,10 @@ def _fetch_health_day(client: Garmin, d: date) -> dict:
         row["sleep_rem_s"] = sl.get("remSleepSeconds")
         row["sleep_light_s"] = sl.get("lightSleepSeconds")
         row["sleep_awake_s"] = sl.get("awakeSleepSeconds")
-    except Exception:
-        pass
+        if row.get("sleep_score") is None:
+            console.print(f"  [yellow]sleep {ds}: score=None (sleepScores={scores})[/yellow]")
+    except Exception as exc:
+        console.print(f"  [yellow]sleep {ds}: {type(exc).__name__}: {exc}[/yellow]")
     time.sleep(API_DELAY)
 
     # RHR
@@ -285,8 +287,8 @@ def _fetch_health_day(client: Garmin, d: date) -> dict:
         rhr_list = metrics.get("WELLNESS_RESTING_HEART_RATE") or []
         if rhr_list:
             row["rhr"] = int(rhr_list[0].get("value", 0)) or None
-    except Exception:
-        pass
+    except Exception as exc:
+        console.print(f"  [yellow]rhr {ds}: {type(exc).__name__}: {exc}[/yellow]")
     time.sleep(API_DELAY)
 
     # Body battery
@@ -297,8 +299,8 @@ def _fetch_health_day(client: Garmin, d: date) -> dict:
             vals = [v[1] for v in (bb.get("bodyBatteryValuesArray") or []) if v[1] is not None]
             row["body_battery_high"] = max(vals) if vals else None
             row["body_battery_low"] = min(vals) if vals else None
-    except Exception:
-        pass
+    except Exception as exc:
+        console.print(f"  [yellow]body_battery {ds}: {type(exc).__name__}: {exc}[/yellow]")
     time.sleep(API_DELAY)
 
     row["synced_at"] = now_iso()
@@ -360,8 +362,12 @@ def _fetch_training_day(client: Garmin, d: date) -> dict:
             row["readiness_feedback"] = r.get("feedbackShort") or r.get("readinessFeedbackPhrase")
             row["acute_load"] = r.get("acuteLoad")
             row["hrv_weekly_avg"] = r.get("hrvWeeklyAverage")
-    except Exception:
-        pass
+            if row.get("readiness_score") is None:
+                console.print(f"  [yellow]readiness {ds}: score=None (raw keys={list(r.keys())})[/yellow]")
+        else:
+            console.print(f"  [yellow]readiness {ds}: empty response (type={type(resp).__name__}, val={resp!r:.100})[/yellow]")
+    except Exception as exc:
+        console.print(f"  [yellow]readiness {ds}: {type(exc).__name__}: {exc}[/yellow]")
     time.sleep(API_DELAY)
     return row
 
