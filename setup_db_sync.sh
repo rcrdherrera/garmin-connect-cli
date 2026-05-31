@@ -30,10 +30,11 @@ EOF
 # ── garmin-db-sync.timer ──────────────────────────────────────────────────────
 cat > /etc/systemd/system/garmin-db-sync.timer << EOF
 [Unit]
-Description=Run Garmin DB sync daily at 06:00
+Description=Run Garmin DB sync daily at 08:30
 
 [Timer]
-OnCalendar=*-*-* 06:00:00
+# 08:30 gives Garmin time to process overnight HRV/sleep data after watch sync
+OnCalendar=*-*-* 08:30:00
 Persistent=true
 
 [Install]
