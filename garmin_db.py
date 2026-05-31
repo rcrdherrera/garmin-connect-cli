@@ -111,6 +111,27 @@ CREATE INDEX IF NOT EXISTS idx_health_date
     ON health_daily (date);
 CREATE INDEX IF NOT EXISTS idx_training_date
     ON training_daily (date);
+
+CREATE TABLE IF NOT EXISTS conversations (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind        TEXT NOT NULL,
+    title       TEXT,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    role            TEXT NOT NULL,
+    content         TEXT NOT NULL,
+    created_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_conv
+    ON messages (conversation_id, id);
+CREATE INDEX IF NOT EXISTS idx_conversations_kind
+    ON conversations (kind, updated_at);
 """
 
 # ─── DB helpers ──────────────────────────────────────────────────────────────

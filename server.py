@@ -9,7 +9,7 @@ import os
 import sqlite3
 import sys
 from contextlib import asynccontextmanager
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +64,8 @@ async def lifespan(app: FastAPI):
     global _athlete_context
     _athlete_context = _load_athlete_context()
     print(f"Athlete context loaded ({len(_athlete_context)} chars)")
+    _ensure_conversation_tables()
+    print("Conversation tables ready")
     yield
 
 
@@ -111,7 +113,7 @@ def _rows(rows) -> list[dict]:
 # ── Claude helper ─────────────────────────────────────────────────────────────
 def _ask_claude(system: str, prompt: str, max_tokens: int = 2048) -> str:
     resp = _claude.messages.create(
-        model="claude-opus-4-7",
+        model="claude-opus-4-8",
         max_tokens=max_tokens,
         system=system,
         messages=[{"role": "user", "content": prompt}],
@@ -134,6 +136,219 @@ Always apply:
 - HR zones: Z1 <147, Z2 147-162 (LT1), Z3 163-173, Z4 174-181 (LT2), Z5 182+
 - Cadence 168-172 spm on every run — non-negotiable for PTT recovery
 - 10% weekly volume increase cap — never exceed even if feeling great"""
+
+
+# ── Conversation table bootstrap (idempotent) ─────────────────────────────────
+def _ensure_conversation_tables() -> None:
+    """Create conversations/messages tables if they don't exist yet."""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS conversations (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind        TEXT NOT NULL,
+            title       TEXT,
+            created_at  TEXT NOT NULL,
+            updated_at  TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS messages (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id INTEGER NOT NULL,
+            role            TEXT NOT NULL,
+            content         TEXT NOT NULL,
+            created_at      TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_messages_conv
+            ON messages (conversation_id, id);
+        CREATE INDEX IF NOT EXISTS idx_conversations_kind
+            ON conversations (kind, updated_at);
+    """)
+    conn.commit()
+    conn.close()
+
+
+# ── Conversation DB helpers ───────────────────────────────────────────────────
+def _conv_db() -> sqlite3.Connection:
+    """DB connection that creates the DB + conversation tables if needed."""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _create_conversation(kind: str, title: str) -> int:
+    conn = _conv_db()
+    now = datetime.utcnow().isoformat()
+    cur = conn.execute(
+        "INSERT INTO conversations (kind, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
+        (kind, title, now, now),
+    )
+    conn.commit()
+    cid = cur.lastrowid
+    conn.close()
+    return cid
+
+
+def _add_message(conv_id: int, role: str, content: str) -> dict:
+    conn = _conv_db()
+    now = datetime.utcnow().isoformat()
+    cur = conn.execute(
+        "INSERT INTO messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+        (conv_id, role, content, now),
+    )
+    conn.commit()
+    mid = cur.lastrowid
+    conn.close()
+    return {"id": mid, "role": role, "content": content, "created_at": now}
+
+
+def _get_messages(conv_id: int) -> list[dict]:
+    conn = _conv_db()
+    rows = _rows(conn.execute(
+        "SELECT id, role, content, created_at FROM messages WHERE conversation_id = ? ORDER BY id",
+        (conv_id,),
+    ).fetchall())
+    conn.close()
+    return rows
+
+
+def _touch_conversation(conv_id: int) -> None:
+    conn = _conv_db()
+    conn.execute(
+        "UPDATE conversations SET updated_at = ? WHERE id = ?",
+        (datetime.utcnow().isoformat(), conv_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def _list_conversations(kind: str | None = None) -> list[dict]:
+    conn = _conv_db()
+    if kind:
+        rows = conn.execute(
+            "SELECT id, kind, title, created_at, updated_at FROM conversations WHERE kind = ? ORDER BY updated_at DESC",
+            (kind,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT id, kind, title, created_at, updated_at FROM conversations ORDER BY updated_at DESC"
+        ).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        preview_row = conn.execute(
+            "SELECT content FROM messages WHERE conversation_id = ? AND role = 'user' ORDER BY id LIMIT 1",
+            (d["id"],),
+        ).fetchone()
+        d["preview"] = preview_row[0][:120] if preview_row else None
+        result.append(d)
+    conn.close()
+    return result
+
+
+def _get_conversation_detail(conv_id: int) -> dict | None:
+    conn = _conv_db()
+    row = conn.execute(
+        "SELECT id, kind, title, created_at, updated_at FROM conversations WHERE id = ?",
+        (conv_id,),
+    ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    d = dict(row)
+    d["messages"] = _rows(conn.execute(
+        "SELECT id, role, content, created_at FROM messages WHERE conversation_id = ? ORDER BY id",
+        (conv_id,),
+    ).fetchall())
+    conn.close()
+    return d
+
+
+def _delete_conversation(conv_id: int) -> bool:
+    conn = _conv_db()
+    conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conv_id,))
+    cur = conn.execute("DELETE FROM conversations WHERE id = ?", (conv_id,))
+    conn.commit()
+    deleted = cur.rowcount > 0
+    conn.close()
+    return deleted
+
+
+# ── Chat context + system helpers ─────────────────────────────────────────────
+def _live_context_for_chat() -> str:
+    """Best-effort today's live metrics string for chat context ('' on failure)."""
+    today = date.today().isoformat()
+    try:
+        g = _garmin()
+        live: dict[str, Any] = {}
+        try:
+            resp = g.get_training_readiness(today)
+            if resp:
+                r = resp[0] if isinstance(resp, list) else resp
+                live["readiness"] = {
+                    "score": r.get("score") or r.get("readinessScore"),
+                    "level": r.get("level") or r.get("readinessLevel"),
+                }
+        except Exception:
+            pass
+        try:
+            s = (g.get_hrv_data(today) or {}).get("hrvSummary", {})
+            live["hrv"] = {
+                "last_night": s.get("lastNightAvg"),
+                "weekly_avg": s.get("weeklyAvg"),
+                "status": s.get("status"),
+            }
+        except Exception:
+            pass
+        try:
+            live["rhr"] = (g.get_heart_rates(today) or {}).get("restingHeartRate")
+        except Exception:
+            pass
+        try:
+            bb = g.get_body_battery(today)
+            if bb and isinstance(bb, list):
+                levels = [x["bodyBatteryLevel"] for x in bb if x.get("bodyBatteryLevel") is not None]
+                if levels:
+                    live["body_battery"] = levels[-1]
+        except Exception:
+            pass
+        if live:
+            return f"\n\nTODAY'S METRICS:\n{json.dumps(live, indent=2)}"
+    except Exception:
+        pass
+    return ""
+
+
+def _system_for_kind(kind: str, live_context: str = "") -> str:
+    """Return the appropriate system prompt for coach / analyze / ask conversations."""
+    today = date.today().isoformat()
+    if kind == "coach":
+        return _coach_system()
+    if kind == "analyze":
+        return f"""You are a sports scientist and performance analyst acting as a running coach.
+
+{_athlete_context}
+
+Today: {today}
+
+Interpret data against Ricardo's specific context: PTT injury history, current phase, race goals,
+HRV baseline 83-103ms, LT1=162bpm, LT2=174bpm, cadence target 168-172spm.
+Apply Kiviniemi HRV protocol, Gabbett ACWR, Seiler polarization, Heiderscheit cadence research.
+
+Be direct and specific. Use clear structure when helpful. No emojis."""
+    # kind == "ask" (default)
+    return f"""You are a world-class running coach and sports scientist. Athlete context:
+
+{_athlete_context}
+
+Today: {today}{live_context}
+
+You have deep knowledge of evidence-based training principles (Seiler polarization, Lydiard, Maffetone),
+injury prevention and return-to-run protocols, HRV interpretation (Kiviniemi protocol), running
+biomechanics, nutrition for endurance athletes, and periodization.
+
+Be direct and practical — this is a coach-athlete conversation, not a textbook.
+Keep answers focused and actionable. Use clear structure when helpful."""
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -214,6 +429,70 @@ def get_status():
     _try("sleep", _sleep)
     _try("rhr", lambda: (g.get_heart_rates(today) or {}).get("restingHeartRate"))
     _try("stress", lambda: (g.get_stress_data(today) or {}).get("overallStressLevel"))
+
+    # DB fallback — backfill any field still None / empty from latest SQLite rows
+    try:
+        if DB_PATH.exists():
+            _conn = sqlite3.connect(str(DB_PATH))
+            _conn.row_factory = sqlite3.Row
+            _h = _conn.execute(
+                "SELECT * FROM health_daily ORDER BY date DESC LIMIT 1"
+            ).fetchone()
+            _t = _conn.execute(
+                "SELECT * FROM training_daily ORDER BY date DESC LIMIT 1"
+            ).fetchone()
+            _conn.close()
+
+            if result.get("readiness") is None and _t:
+                result["readiness"] = {
+                    "score": _t["readiness_score"],
+                    "level": _t["readiness_level"],
+                    "feedback": _t["readiness_feedback"],
+                }
+                result.setdefault("_stale_fields", []).append("readiness")
+
+            _sleep_val = result.get("sleep")
+            _sleep_empty = (
+                _sleep_val is None
+                or (_sleep_val.get("score") is None and (_sleep_val.get("duration_h") or 0) == 0)
+            )
+            if _sleep_empty and _h:
+                result["sleep"] = {
+                    "score": _h["sleep_score"],
+                    "duration_h": round((_h["sleep_duration_s"] or 0) / 3600, 1),
+                    "deep_h": round((_h["sleep_deep_s"] or 0) / 3600, 1),
+                    "rem_h": round((_h["sleep_rem_s"] or 0) / 3600, 1),
+                }
+                result.setdefault("_stale_fields", []).append("sleep")
+
+            _hrv_val = result.get("hrv")
+            _hrv_empty = (
+                _hrv_val is None
+                or (_hrv_val.get("last_night") is None and _hrv_val.get("weekly_avg") is None)
+            )
+            if _hrv_empty and _h:
+                result["hrv"] = {
+                    "last_night": _h["hrv_last_night_avg"],
+                    "weekly_avg": _h["hrv_weekly_avg"],
+                    "status": _h["hrv_status"],
+                    "baseline_low": _h["hrv_baseline_low"],
+                    "baseline_high": _h["hrv_baseline_high"],
+                }
+                result.setdefault("_stale_fields", []).append("hrv")
+
+            if result.get("body_battery") is None and _h:
+                result["body_battery"] = {
+                    "current": None,
+                    "high": _h["body_battery_high"],
+                    "low": _h["body_battery_low"],
+                }
+                result.setdefault("_stale_fields", []).append("body_battery")
+
+            if result.get("rhr") is None and _h and _h["rhr"]:
+                result["rhr"] = _h["rhr"]
+                result.setdefault("_stale_fields", []).append("rhr")
+    except Exception as exc:
+        errors.append(f"db_fallback: {exc}")
 
     if errors:
         print(f"[status] {today} — {len(errors)} fetch error(s):")
@@ -472,9 +751,19 @@ Use this exact format:
 — NEXT 7 DAYS —
 [one specific, concrete recommendation based on this data]"""
 
+    report = _ask_claude(system, prompt, max_tokens=2048)
+
+    # Persist to conversation history
+    title = f"Analyze {start} – {end}"
+    conv_id = _create_conversation("analyze", title)
+    _add_message(conv_id, "user", f"Analyze training period {start} to {end}")
+    _add_message(conv_id, "assistant", report)
+
     return {
         "period": f"{start} to {end}",
-        "report": _ask_claude(system, prompt, max_tokens=2048),
+        "report": report,
+        "conversation_id": conv_id,
+        "title": title,
     }
 
 
@@ -655,11 +944,22 @@ Use this exact format. No emojis. Be direct:
 — RED FLAGS —
 [exact conditions to stop or pull back — be specific about HR numbers, pain signals]"""
 
+    brief = _ask_claude(_coach_system(), prompt, max_tokens=2048)
+
+    # Persist to conversation history
+    session_label = req.type.replace("-", " ").title()
+    title = f"{session_label} — {today}"
+    conv_id = _create_conversation("coach", title)
+    _add_message(conv_id, "user", f"Design a {req.type} training session for {today}")
+    _add_message(conv_id, "assistant", brief)
+
     return {
         "date": today,
         "type": req.type,
-        "brief": _ask_claude(_coach_system(), prompt, max_tokens=2048),
+        "brief": brief,
         "uploaded_workouts": uploaded,
+        "conversation_id": conv_id,
+        "title": title,
     }
 
 
@@ -865,69 +1165,84 @@ KEY CUE: [one specific thing to focus on next run]"""
 
 class ChatRequest(BaseModel):
     message: str
+    conversation_id: int | None = None
+    kind: str = "ask"  # 'coach' | 'analyze' | 'ask'
 
 
 @app.post("/chat", dependencies=[AUTH])
 def chat(req: ChatRequest):
-    """Free-form coaching chat — ask your AI coach anything."""
-    today = date.today().isoformat()
+    """Multi-turn coaching chat. Pass conversation_id to continue an existing thread."""
+    kind = req.kind if req.kind in ("coach", "analyze", "ask") else "ask"
 
-    # Best-effort live metrics for context
-    live_context = ""
-    try:
-        g = _garmin()
-        live: dict[str, Any] = {}
-        try:
-            r = g.get_training_readiness(today) or {}
-            live["readiness"] = {"score": r.get("readinessScore"), "level": r.get("readinessLevel")}
-        except Exception:
-            pass
-        try:
-            s = (g.get_hrv_data(today) or {}).get("hrvSummary", {})
-            live["hrv"] = {
-                "last_night": s.get("lastNightAvg"),
-                "weekly_avg": s.get("weeklyAvg"),
-                "status": s.get("status"),
-            }
-        except Exception:
-            pass
-        try:
-            live["rhr"] = (g.get_heart_rates(today) or {}).get("restingHeartRate")
-        except Exception:
-            pass
-        try:
-            bb = g.get_body_battery(today)
-            if bb and isinstance(bb, list):
-                levels = [x["bodyBatteryLevel"] for x in bb if x.get("bodyBatteryLevel") is not None]
-                if levels:
-                    live["body_battery"] = levels[-1]
-        except Exception:
-            pass
-        if live:
-            live_context = f"\n\nTODAY'S METRICS:\n{json.dumps(live, indent=2)}"
-    except Exception:
-        pass
+    # Live metrics only for 'ask' kind (avoid extra API calls for follow-ups on coach/analyze)
+    live_context = _live_context_for_chat() if kind == "ask" else ""
 
-    system = f"""You are a world-class running coach and sports scientist. Athlete context:
+    # Get or create conversation
+    conv_id = req.conversation_id
+    title: str
+    if conv_id is not None:
+        existing = _get_conversation_detail(conv_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        title = existing.get("title") or req.message[:80]
+    else:
+        title = req.message[:80]
+        conv_id = _create_conversation(kind, title)
 
-{_athlete_context}
+    # Persist user message
+    _add_message(conv_id, "user", req.message)
 
-Today: {today}{live_context}
+    # Build full message history for Claude (all prior turns + new user message)
+    all_messages = _get_messages(conv_id)
+    claude_messages = [{"role": m["role"], "content": m["content"]} for m in all_messages]
 
-You have deep knowledge of evidence-based training principles (Seiler polarization, Lydiard, Maffetone),
-injury prevention and return-to-run protocols, HRV interpretation (Kiviniemi protocol), running
-biomechanics, nutrition for endurance athletes, and periodization.
-
-Be direct and practical — this is a coach-athlete conversation, not a textbook.
-Keep answers focused and actionable. Use clear structure when helpful."""
-
+    # Call Claude with full conversation context
     resp = _claude.messages.create(
-        model="claude-opus-4-7",
+        model="claude-opus-4-8",
         max_tokens=1024,
-        system=system,
-        messages=[{"role": "user", "content": req.message}],
+        system=_system_for_kind(kind, live_context),
+        messages=claude_messages,
     )
-    return {"response": resp.content[0].text}
+    reply_text = resp.content[0].text
+
+    # Persist assistant reply and update conversation timestamp
+    assistant_msg = _add_message(conv_id, "assistant", reply_text)
+    _touch_conversation(conv_id)
+
+    return {
+        "conversation_id": conv_id,
+        "title": title,
+        "message": assistant_msg,
+    }
+
+
+# ── GET /conversations ────────────────────────────────────────────────────────
+
+@app.get("/conversations", dependencies=[AUTH])
+def list_conversations(kind: str | None = None):
+    """List conversations, optionally filtered by kind (coach | analyze | ask)."""
+    return {"conversations": _list_conversations(kind)}
+
+
+# ── GET /conversations/{id} ───────────────────────────────────────────────────
+
+@app.get("/conversations/{conv_id}", dependencies=[AUTH])
+def get_conversation(conv_id: int):
+    """Get a full conversation with all its messages."""
+    conv = _get_conversation_detail(conv_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conv
+
+
+# ── DELETE /conversations/{id} ────────────────────────────────────────────────
+
+@app.delete("/conversations/{conv_id}", dependencies=[AUTH])
+def delete_conversation(conv_id: int):
+    """Delete a conversation and all its messages."""
+    if not _delete_conversation(conv_id):
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"deleted": conv_id}
 
 
 if __name__ == "__main__":
