@@ -19,6 +19,7 @@ jobs:
       - name: Sync dependencies
         run: |
           cd /opt/garmin-connect-cli
+          [ -f .venv/bin/pip ] || python3 -m venv .venv
           .venv/bin/pip install -e ".[server]" -q
 
       - name: Restart service
