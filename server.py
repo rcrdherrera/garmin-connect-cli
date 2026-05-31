@@ -555,7 +555,8 @@ def get_status():
             ).fetchone()
             _conn.close()
 
-            if result.get("readiness") is None and _t:
+            _readiness_val = result.get("readiness")
+            if (_readiness_val is None or _readiness_val.get("score") is None) and _t:
                 result["readiness"] = {
                     "score": _t["readiness_score"],
                     "level": _t["readiness_level"],
@@ -564,18 +565,20 @@ def get_status():
                 result.setdefault("_stale_fields", []).append("readiness")
 
             _sleep_val = result.get("sleep")
-            _sleep_empty = (
-                _sleep_val is None
-                or (_sleep_val.get("score") is None and (_sleep_val.get("duration_h") or 0) == 0)
-            )
-            if _sleep_empty and _h:
-                result["sleep"] = {
-                    "score": _h["sleep_score"],
-                    "duration_h": round((_h["sleep_duration_s"] or 0) / 3600, 1),
-                    "deep_h": round((_h["sleep_deep_s"] or 0) / 3600, 1),
-                    "rem_h": round((_h["sleep_rem_s"] or 0) / 3600, 1),
-                }
-                result.setdefault("_stale_fields", []).append("sleep")
+            if _h and _h["sleep_score"]:
+                if _sleep_val is None:
+                    # No sleep data at all from the live API — use full DB row
+                    result["sleep"] = {
+                        "score": _h["sleep_score"],
+                        "duration_h": round((_h["sleep_duration_s"] or 0) / 3600, 1),
+                        "deep_h": round((_h["sleep_deep_s"] or 0) / 3600, 1),
+                        "rem_h": round((_h["sleep_rem_s"] or 0) / 3600, 1),
+                    }
+                    result.setdefault("_stale_fields", []).append("sleep")
+                elif _sleep_val.get("score") is None:
+                    # Live API has duration but not score yet — patch just the score
+                    result["sleep"] = {**_sleep_val, "score": _h["sleep_score"]}
+                    result.setdefault("_stale_fields", []).append("sleep")
 
             _hrv_val = result.get("hrv")
             _hrv_empty = (
