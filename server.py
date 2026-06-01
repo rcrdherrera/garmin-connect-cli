@@ -31,6 +31,7 @@ from create_workouts import (
     lower_body_hip_glute,
     upper_body_core,
     full_body_posterior_chain,
+    rep_group, ex_reps, ex_time, rest, workout, STRENGTH,
 )
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ TOKEN_DIR    = Path.home() / ".config" / "garmin-connect-cli" / "tokens"
 DB_PATH      = Path.home() / ".config" / "garmin-connect-cli" / "garmin.db"
 PLAN_PATH    = Path.home() / ".config" / "garmin-connect-cli" / "training_plan.json"
 MEMORY_DIR   = Path.home() / ".claude" / "projects" / "C--garmin-connect-cli" / "memory"
+CATALOG_PATH = REPO_ROOT / "data" / "garmin_exercises.json"
 SERVER_TOKEN = os.environ.get("COACH_SERVER_TOKEN", "")
 PORT         = int(os.environ.get("COACH_PORT", "8765"))
 
@@ -46,6 +48,23 @@ if not SERVER_TOKEN:
 
 # ── Anthropic client ──────────────────────────────────────────────────────────
 _claude = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
+
+# ── Exercise catalog (loaded once at startup from data/garmin_exercises.json) ─
+_CATALOG_SKIP = {"RUN", "RUN_INDOOR", "BIKE_OUTDOOR", "INDOOR_BIKE", "ELLIPTICAL", "STAIR_STEPPER"}
+
+def _load_exercise_catalog() -> tuple[dict[str, dict], str]:
+    if not CATALOG_PATH.exists():
+        print(f"[catalog] {CATALOG_PATH} not found — dynamic workouts unavailable")
+        return {}, ""
+    with CATALOG_PATH.open() as f:
+        data = json.load(f)
+    cats = {k: v for k, v in data.get("categories", {}).items() if k not in _CATALOG_SKIP}
+    lines = [f"{cat}: {', '.join(info['exercises'].keys())}" for cat, info in sorted(cats.items())]
+    n_ex = sum(len(v["exercises"]) for v in cats.values())
+    print(f"[catalog] Loaded {len(cats)} categories, {n_ex} exercises")
+    return cats, "\n".join(lines)
+
+_exercise_catalog, _catalog_str = _load_exercise_catalog()
 
 # ── Athlete context (loaded once at startup) ──────────────────────────────────
 _athlete_context: str = ""
@@ -184,14 +203,14 @@ def _ask_claude(system: str, prompt: str, max_tokens: int = 2048) -> str:
     resp = _claude.messages.create(
         model="claude-opus-4-8",
         max_tokens=max_tokens,
-        system=system,
+        system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
     return resp.content[0].text
 
 
 def _coach_system() -> str:
-    return f"""You are a world-class running coach and sports scientist. Athlete permanent context:
+    system = f"""You are a world-class running coach and sports scientist. Athlete permanent context:
 
 {_athlete_context}
 
@@ -205,6 +224,135 @@ Always apply:
 - HR zones: Z1 <147, Z2 147-162 (LT1), Z3 163-173, Z4 174-181 (LT2), Z5 182+
 - Cadence 168-172 spm on every run — non-negotiable for PTT recovery
 - 10% weekly volume increase cap — never exceed even if feeling great"""
+
+    if _catalog_str:
+        system += f"""
+
+GARMIN EXERCISE CATALOG — when designing strength workouts, use ONLY these exact category/exercise_name keys. Garmin rejects any key not in this list.
+
+{_catalog_str}"""
+
+    return system
+
+
+# ── Dynamic workout generation ────────────────────────────────────────────────
+
+_WORKOUT_TOOL: dict = {
+    "name": "create_strength_workout",
+    "description": (
+        "Create a structured strength workout for direct upload to Garmin Connect. "
+        "All category and exercise_name values MUST be exact keys from the GARMIN EXERCISE CATALOG "
+        "in the system prompt — Garmin validates every key server-side and rejects the entire workout "
+        "on any mismatch."
+    ),
+    "input_schema": {
+        "type": "object",
+        "required": ["workout_name", "description", "exercises"],
+        "properties": {
+            "workout_name": {"type": "string", "description": "Short name, max 50 chars"},
+            "description": {"type": "string", "description": "One-sentence description for Garmin, max 200 chars"},
+            "exercises": {
+                "type": "array",
+                "description": "4–7 exercises in order",
+                "minItems": 4,
+                "maxItems": 7,
+                "items": {
+                    "type": "object",
+                    "required": ["category", "exercise_name", "sets", "note"],
+                    "properties": {
+                        "category": {"type": "string", "description": "Exact category key from catalog"},
+                        "exercise_name": {"type": "string", "description": "Exact exercise key from catalog"},
+                        "sets": {"type": "integer", "minimum": 2, "maximum": 5},
+                        "reps": {"type": "integer", "description": "Reps per set — omit for time-based"},
+                        "seconds": {"type": "integer", "description": "Seconds per set — omit for rep-based"},
+                        "note": {"type": "string", "description": "Coaching cue, max 120 chars"},
+                    },
+                },
+            },
+        },
+    },
+}
+
+
+def _design_dynamic_workout(session_type: str, readiness: int | None) -> dict:
+    """Ask Claude (with tool use) to design a strength workout from the Garmin catalog."""
+    if not _catalog_str:
+        if session_type == "lower-body":
+            return lower_body_hip_glute()
+        if session_type == "upper-body":
+            return upper_body_core()
+        return full_body_posterior_chain()
+
+    if readiness is None:
+        intensity = "OPTIMAL — treat as moderate intensity"
+    elif readiness >= 80:
+        intensity = "PRIME — full volume and intensity"
+    elif readiness >= 60:
+        intensity = "OPTIMAL — moderate intensity, standard volume"
+    elif readiness >= 40:
+        intensity = "MAINTENANCE — reduced intensity, drop one set per exercise"
+    else:
+        intensity = "RECOVERY — minimal load, bodyweight only, prioritise mobility"
+
+    resp = _claude.messages.create(
+        model="claude-opus-4-8",
+        max_tokens=1024,
+        system=[{"type": "text", "text": _coach_system(), "cache_control": {"type": "ephemeral"}}],
+        tools=[_WORKOUT_TOOL],
+        tool_choice={"type": "tool", "name": "create_strength_workout"},
+        messages=[{
+            "role": "user",
+            "content": (
+                f"Design a {session_type} strength workout. "
+                f"Readiness: {intensity}. "
+                f"Context: PTT rehab Phase 1 — prioritise hip/glute strength, eccentric calf loading, "
+                f"single-leg stability. No jumping or heavy axial loading. "
+                f"Use ONLY exercise keys from the GARMIN EXERCISE CATALOG. "
+                f"Call create_strength_workout with your design."
+            ),
+        }],
+    )
+
+    for block in resp.content:
+        if hasattr(block, "type") and block.type == "tool_use" and block.name == "create_strength_workout":
+            return _tool_input_to_garmin(block.input)
+
+    raise RuntimeError("Claude did not call create_strength_workout")
+
+
+def _tool_input_to_garmin(tool_input: dict) -> dict:
+    """Convert Claude's create_strength_workout tool output into a Garmin workout payload."""
+    exercises = tool_input["exercises"]
+    steps = []
+    o = 1
+    g = 1
+
+    for ex in exercises:
+        gid = g
+        g += 1
+        rg_o = o
+        o += 1
+
+        reps = ex.get("reps")
+        secs = ex.get("seconds")
+        note = (ex.get("note") or "")[:120]
+        sets = ex["sets"]
+
+        inner = (
+            ex_reps(o, gid, reps, ex["category"], ex["exercise_name"], note)
+            if reps
+            else ex_time(o, gid, secs or 30, ex["category"], ex["exercise_name"], note)
+        )
+        o += 1
+        steps.append(rep_group(rg_o, gid, sets, [inner, rest(o, gid)]))
+        o += 1
+
+    est = int(sum(
+        ex["sets"] * ((ex.get("reps", 10) * 3 if ex.get("reps") else ex.get("seconds", 30)) + 90)
+        for ex in exercises
+    ))
+
+    return workout(tool_input["workout_name"], tool_input["description"], STRENGTH, steps, est)
 
 
 # ── Conversation table bootstrap (idempotent) ─────────────────────────────────
@@ -911,19 +1059,15 @@ class CoachRequest(BaseModel):
 def _build_sessions(session_type: str, readiness: int | None, today: date) -> list[tuple[dict, date]]:
     """Return list of (workout_dict, target_date) pairs based on session type."""
     run_fn = walk_run_protocol if (readiness is not None and readiness < 60) else z2_easy_run
-    strength_rotation = [lower_body_hip_glute, upper_body_core, full_body_posterior_chain]
 
     if session_type == "running":
         return [(run_fn(), today)]
-    if session_type == "lower-body":
-        return [(lower_body_hip_glute(), today)]
-    if session_type == "upper-body":
-        return [(upper_body_core(), today)]
-    if session_type in ("full-body", "strength"):
-        return [(full_body_posterior_chain(), today)]
+    if session_type in ("lower-body", "upper-body", "full-body", "strength"):
+        stype = session_type if session_type != "strength" else "full-body"
+        return [(_design_dynamic_workout(stype, readiness), today)]
     if session_type == "weekly":
-        # Phase 1 pattern over next 7 days: Run / Strength / Run / Strength / Run / Strength / Rest
         pattern = ["run", "strength", "run", "strength", "run", "strength", "rest"]
+        strength_types = ["lower-body", "upper-body", "full-body"]
         sessions: list[tuple[dict, date]] = []
         strength_idx = 0
         for i, day_type in enumerate(pattern):
@@ -931,7 +1075,8 @@ def _build_sessions(session_type: str, readiness: int | None, today: date) -> li
             if day_type == "run":
                 sessions.append((run_fn(), target))
             elif day_type == "strength":
-                sessions.append((strength_rotation[strength_idx % 3](), target))
+                stype = strength_types[strength_idx % 3]
+                sessions.append((_design_dynamic_workout(stype, readiness), target))
                 strength_idx += 1
         return sessions
     return []
@@ -1337,7 +1482,7 @@ def chat(req: ChatRequest):
     resp = _claude.messages.create(
         model="claude-opus-4-8",
         max_tokens=1024,
-        system=_system_for_kind(kind, live_context),
+        system=[{"type": "text", "text": _system_for_kind(kind, live_context), "cache_control": {"type": "ephemeral"}}],
         messages=claude_messages,
     )
     reply_text = resp.content[0].text
