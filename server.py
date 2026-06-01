@@ -317,7 +317,13 @@ def _design_dynamic_workout(session_type: str, readiness: int | None) -> dict:
         if hasattr(block, "type") and block.type == "tool_use" and block.name == "create_strength_workout":
             return _tool_input_to_garmin(block.input)
 
-    raise RuntimeError("Claude did not call create_strength_workout")
+    # Fallback if Claude skips the tool call (shouldn't happen with tool_choice forced)
+    print(f"[workout] Claude did not call the tool — falling back to hardcoded {session_type}")
+    if session_type == "lower-body":
+        return lower_body_hip_glute()
+    if session_type == "upper-body":
+        return upper_body_core()
+    return full_body_posterior_chain()
 
 
 def _tool_input_to_garmin(tool_input: dict) -> dict:
