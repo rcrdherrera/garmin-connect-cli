@@ -35,6 +35,7 @@ TOKEN_DIR  = Path.home() / ".config" / "garmin-connect-cli" / "tokens"
 DB_PATH    = Path.home() / ".config" / "garmin-connect-cli" / "garmin.db"
 SYNC_START = date(2024, 5, 1)   # Garmin API retention limit (~2 years)
 API_DELAY  = 0.3                # Seconds between per-day API calls
+RUN_TYPES  = frozenset({"running", "treadmill_running", "track_running"})
 
 # ─── Schema ──────────────────────────────────────────────────────────────────
 
@@ -230,20 +231,10 @@ def sync_activities(client: Garmin, conn: sqlite3.Connection, since: date) -> in
     end = date.today()
     console.print(f"  Fetching activities {since} to {end}...")
 
-    # Garmin returns max ~200 per call; page through if needed
-    all_activities = []
-    start_idx = 0
-    batch = 200
-    while True:
-        chunk = client.get_activities_by_date(
-            startdate=since.isoformat(),
-            enddate=end.isoformat(),
-        )
-        if not chunk:
-            break
-        # get_activities_by_date returns all in range, not paginated
-        all_activities = chunk
-        break
+    all_activities = client.get_activities_by_date(
+        startdate=since.isoformat(),
+        enddate=end.isoformat(),
+    )
 
     if not all_activities:
         return 0
@@ -331,6 +322,14 @@ def _fetch_health_day(client: Garmin, d: date) -> dict:
     return row
 
 
+_HEALTH_COLS = [
+    "date", "hrv_last_night_avg", "hrv_weekly_avg", "hrv_status",
+    "hrv_baseline_low", "hrv_baseline_high", "sleep_score",
+    "sleep_duration_s", "sleep_deep_s", "sleep_rem_s",
+    "sleep_light_s", "sleep_awake_s", "rhr",
+    "body_battery_high", "body_battery_low", "stress", "synced_at",
+]
+
 def sync_health(client: Garmin, conn: sqlite3.Connection, since: date) -> int:
     days = list(date_range(since, date.today()))
     count = 0
@@ -357,17 +356,11 @@ def sync_health(client: Garmin, conn: sqlite3.Connection, since: date) -> int:
                     :sleep_duration_s, :sleep_deep_s, :sleep_rem_s,
                     :sleep_light_s, :sleep_awake_s, :rhr,
                     :body_battery_high, :body_battery_low, :stress, :synced_at)""",
-                {k: row.get(k) for k in [
-                    "date", "hrv_last_night_avg", "hrv_weekly_avg", "hrv_status",
-                    "hrv_baseline_low", "hrv_baseline_high", "sleep_score",
-                    "sleep_duration_s", "sleep_deep_s", "sleep_rem_s",
-                    "sleep_light_s", "sleep_awake_s", "rhr",
-                    "body_battery_high", "body_battery_low", "stress", "synced_at",
-                ]},
+                {k: row.get(k) for k in _HEALTH_COLS},
             )
-            conn.commit()
             count += 1
             progress.advance(task)
+    conn.commit()
     return count
 
 
@@ -405,6 +398,11 @@ def _fetch_training_day(client: Garmin, d: date) -> dict:
     return row
 
 
+_TRAINING_COLS = [
+    "date", "readiness_score", "readiness_level", "readiness_feedback",
+    "acute_load", "hrv_weekly_avg", "training_status", "synced_at",
+]
+
 def sync_training(client: Garmin, conn: sqlite3.Connection, since: date) -> int:
     days = list(date_range(since, date.today()))
     count = 0
@@ -425,14 +423,11 @@ def sync_training(client: Garmin, conn: sqlite3.Connection, since: date) -> int:
                    VALUES
                    (:date, :readiness_score, :readiness_level, :readiness_feedback,
                     :acute_load, :hrv_weekly_avg, :training_status, :synced_at)""",
-                {k: row.get(k) for k in [
-                    "date", "readiness_score", "readiness_level", "readiness_feedback",
-                    "acute_load", "hrv_weekly_avg", "training_status", "synced_at",
-                ]},
+                {k: row.get(k) for k in _TRAINING_COLS},
             )
-            conn.commit()
             count += 1
             progress.advance(task)
+    conn.commit()
     return count
 
 
@@ -533,16 +528,18 @@ def cmd_stats(args):
     # Quick coaching insights
     console.print()
     console.print("[bold]Last 7 days - Running volume[/bold]")
-    rows = conn.execute("""
-        SELECT date(start_time_local) as day,
+    _run_ph = ",".join("?" * len(RUN_TYPES))
+    rows = conn.execute(
+        f"""SELECT date(start_time_local) as day,
                round(sum(distance_m)/1000, 1) as km,
                round(avg(avg_cadence), 0) as cadence,
                round(avg(avg_hr), 0) as avg_hr
         FROM activities
-        WHERE activity_type LIKE '%running%'
+        WHERE activity_type IN ({_run_ph})
           AND date(start_time_local) >= date('now', '-7 days')
-        GROUP BY day ORDER BY day DESC
-    """).fetchall()
+        GROUP BY day ORDER BY day DESC""",
+        tuple(RUN_TYPES),
+    ).fetchall()
     if rows:
         t2 = Table(show_header=True)
         t2.add_column("Date")

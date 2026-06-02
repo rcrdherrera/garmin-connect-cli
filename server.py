@@ -52,6 +52,10 @@ _claude = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
 # ── Exercise catalog (loaded once at startup from data/garmin_exercises.json) ─
 _CATALOG_SKIP = {"RUN", "RUN_INDOOR", "BIKE_OUTDOOR", "INDOOR_BIKE", "ELLIPTICAL", "STAIR_STEPPER"}
 
+# Activity type sets shared across endpoints and SQL queries
+RUN_TYPES = frozenset({"running", "treadmill_running", "track_running"})
+LOAD_TYPES = RUN_TYPES | frozenset({"strength_training", "fitness_equipment"})
+
 def _load_exercise_catalog() -> tuple[dict[str, dict], str]:
     if not CATALOG_PATH.exists():
         print(f"[catalog] {CATALOG_PATH} not found — dynamic workouts unavailable")
@@ -67,10 +71,19 @@ def _load_exercise_catalog() -> tuple[dict[str, dict], str]:
 _exercise_catalog, _catalog_str = _load_exercise_catalog()
 
 # ── Athlete context (hot-reloaded on every request) ───────────────────────────
+_context_cache: tuple[float, str] | None = None
+
+
 def _load_athlete_context() -> str:
-    if CONTEXT_FILE.exists():
-        return CONTEXT_FILE.read_text(encoding="utf-8")
-    return ""
+    global _context_cache
+    if not CONTEXT_FILE.exists():
+        return ""
+    mtime = CONTEXT_FILE.stat().st_mtime
+    if _context_cache is not None and _context_cache[0] == mtime:
+        return _context_cache[1]
+    text = CONTEXT_FILE.read_text(encoding="utf-8")
+    _context_cache = (mtime, text)
+    return text
 
 
 def _append_to_context(fact: str) -> None:
@@ -171,24 +184,40 @@ AUTH = Depends(_auth)
 
 
 # ── Garmin factory ────────────────────────────────────────────────────────────
+_garmin_cache: tuple[float, Garmin] | None = None
+
+
 def _garmin() -> Garmin:
-    if not (TOKEN_DIR / "oauth2_token.json").exists():
+    global _garmin_cache
+    token_file = TOKEN_DIR / "oauth2_token.json"
+    if not token_file.exists():
         raise HTTPException(
             status_code=503,
             detail="Garmin not authenticated — run 'garmin-connect auth login' first",
         )
+    mtime = token_file.stat().st_mtime
+    if _garmin_cache is not None and _garmin_cache[0] == mtime:
+        return _garmin_cache[1]
     g = Garmin()
     g.login(str(TOKEN_DIR))
+    _garmin_cache = (mtime, g)
     return g
 
 
-# ── DB helper ─────────────────────────────────────────────────────────────────
-def _db() -> sqlite3.Connection:
-    if not DB_PATH.exists():
-        raise HTTPException(status_code=503, detail="Garmin database not found")
+# ── DB helpers ────────────────────────────────────────────────────────────────
+def _open_db() -> sqlite3.Connection:
+    """Open (or create) the SQLite DB. Never raises — caller decides what to do."""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _db() -> sqlite3.Connection:
+    """Open the DB; raises 503 if the DB hasn't been initialised yet (sync hasn't run)."""
+    if not DB_PATH.exists():
+        raise HTTPException(status_code=503, detail="Garmin database not found")
+    return _open_db()
 
 
 def _rows(rows) -> list[dict]:
@@ -361,8 +390,7 @@ def _tool_input_to_garmin(tool_input: dict) -> dict:
 # ── Conversation table bootstrap (idempotent) ─────────────────────────────────
 def _ensure_conversation_tables() -> None:
     """Create conversations/messages tables if they don't exist yet."""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = _open_db()
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS conversations (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -388,16 +416,10 @@ def _ensure_conversation_tables() -> None:
 
 
 # ── Conversation DB helpers ───────────────────────────────────────────────────
-def _conv_db() -> sqlite3.Connection:
-    """DB connection that creates the DB + conversation tables if needed."""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    return conn
 
 
 def _create_conversation(kind: str, title: str) -> int:
-    conn = _conv_db()
+    conn = _open_db()
     now = datetime.utcnow().isoformat()
     cur = conn.execute(
         "INSERT INTO conversations (kind, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
@@ -410,7 +432,7 @@ def _create_conversation(kind: str, title: str) -> int:
 
 
 def _add_message(conv_id: int, role: str, content: str) -> dict:
-    conn = _conv_db()
+    conn = _open_db()
     now = datetime.utcnow().isoformat()
     cur = conn.execute(
         "INSERT INTO messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)",
@@ -423,7 +445,7 @@ def _add_message(conv_id: int, role: str, content: str) -> dict:
 
 
 def _get_messages(conv_id: int) -> list[dict]:
-    conn = _conv_db()
+    conn = _open_db()
     rows = _rows(conn.execute(
         "SELECT id, role, content, created_at FROM messages WHERE conversation_id = ? ORDER BY id",
         (conv_id,),
@@ -433,7 +455,7 @@ def _get_messages(conv_id: int) -> list[dict]:
 
 
 def _touch_conversation(conv_id: int) -> None:
-    conn = _conv_db()
+    conn = _open_db()
     conn.execute(
         "UPDATE conversations SET updated_at = ? WHERE id = ?",
         (datetime.utcnow().isoformat(), conv_id),
@@ -443,7 +465,7 @@ def _touch_conversation(conv_id: int) -> None:
 
 
 def _list_conversations(kind: str | None = None) -> list[dict]:
-    conn = _conv_db()
+    conn = _open_db()
     if kind:
         rows = conn.execute(
             "SELECT id, kind, title, created_at, updated_at FROM conversations WHERE kind = ? ORDER BY updated_at DESC",
@@ -467,7 +489,7 @@ def _list_conversations(kind: str | None = None) -> list[dict]:
 
 
 def _get_conversation_detail(conv_id: int) -> dict | None:
-    conn = _conv_db()
+    conn = _open_db()
     row = conn.execute(
         "SELECT id, kind, title, created_at, updated_at FROM conversations WHERE id = ?",
         (conv_id,),
@@ -485,7 +507,7 @@ def _get_conversation_detail(conv_id: int) -> dict | None:
 
 
 def _delete_conversation(conv_id: int) -> bool:
-    conn = _conv_db()
+    conn = _open_db()
     conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conv_id,))
     cur = conn.execute("DELETE FROM conversations WHERE id = ?", (conv_id,))
     conn.commit()
@@ -1269,8 +1291,6 @@ def evaluate(req: EvaluateRequest):
     """Evaluate the most recent run against the plan and recommend adjustments."""
     g = _garmin()
     today = date.today()
-    run_types = ("running", "treadmill_running", "track_running")
-
     acts = g.get_activities(start=0, limit=10)
     if req.activity_id:
         target = next((a for a in acts if a["activityId"] == req.activity_id), None)
@@ -1282,7 +1302,7 @@ def evaluate(req: EvaluateRequest):
                     a.get("activityType", {}).get("typeKey", "")
                     if isinstance(a.get("activityType"), dict)
                     else a.get("activityType", "")
-                ) in run_types
+                ) in RUN_TYPES
             ),
             None,
         )
@@ -1341,24 +1361,29 @@ def evaluate(req: EvaluateRequest):
     # ACWR
     d28 = (today - timedelta(days=28)).isoformat() + "T00:00:00"
     d7  = (today - timedelta(days=7)).isoformat()  + "T00:00:00"
+    _run_ph = ",".join("?" * len(RUN_TYPES))
+    _run_args = tuple(RUN_TYPES)
+    _load_ph = ",".join("?" * len(LOAD_TYPES))
+    _load_args = tuple(LOAD_TYPES)
     r28 = conn.execute(
-        "SELECT COALESCE(SUM(training_load),0) FROM activities WHERE start_time_local >= ? AND activity_type IN ('running','treadmill_running','track_running')",
-        (d28,),
+        f"SELECT COALESCE(SUM(training_load),0) FROM activities WHERE start_time_local >= ? AND activity_type IN ({_run_ph})",
+        (d28, *_run_args),
     ).fetchone()[0]
     r7 = conn.execute(
-        "SELECT COALESCE(SUM(training_load),0) FROM activities WHERE start_time_local >= ? AND activity_type IN ('running','treadmill_running','track_running')",
-        (d7,),
+        f"SELECT COALESCE(SUM(training_load),0) FROM activities WHERE start_time_local >= ? AND activity_type IN ({_run_ph})",
+        (d7, *_run_args),
     ).fetchone()[0]
     chronic = r28 / 4
     acwr = round(r7 / chronic, 2) if chronic > 0 else None
 
     # CTL / ATL / TSB
-    load_rows = conn.execute("""
-        SELECT substr(start_time_local,1,10) d, SUM(training_load) load
+    load_rows = conn.execute(
+        f"""SELECT substr(start_time_local,1,10) d, SUM(training_load) load
         FROM activities WHERE start_time_local >= ?
-          AND activity_type IN ('running','treadmill_running','track_running','strength_training','fitness_equipment')
-        GROUP BY d ORDER BY d
-    """, (d28,)).fetchall()
+          AND activity_type IN ({_load_ph})
+        GROUP BY d ORDER BY d""",
+        (d28, *_load_args),
+    ).fetchall()
     conn.close()
 
     ctl, atl = 0.0, 0.0
