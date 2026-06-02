@@ -504,7 +504,7 @@ def _live_context_for_chat() -> str:
         try:
             resp = g.get_training_readiness(today)
             if resp:
-                r = resp[-1] if isinstance(resp, list) else resp
+                r = resp[0] if isinstance(resp, list) else resp
                 live["readiness"] = {
                     "score": r.get("readinessScore") or r.get("score"),
                     "level": r.get("readinessLevel") or r.get("level"),
@@ -672,7 +672,7 @@ def get_status(local_date: str | None = Query(default=None)):
         resp = g.get_training_readiness(today)
         if not resp:
             return None
-        r = resp[-1] if isinstance(resp, list) else resp
+        r = resp[0] if isinstance(resp, list) else resp
         return {
             "score": r.get("readinessScore") or r.get("score"),
             "level": r.get("readinessLevel") or r.get("level"),
@@ -768,6 +768,14 @@ def get_status(local_date: str | None = Query(default=None)):
             if result.get("rhr") is None and _h and _h["rhr"]:
                 result["rhr"] = _h["rhr"]
                 result.setdefault("_stale_fields", []).append("rhr")
+
+            if result.get("stress") is None and _h and _h["stress"]:
+                result["stress"] = _h["stress"]
+                result.setdefault("_stale_fields", []).append("stress")
+
+            if result.get("training_status") is None and _t and _t["training_status"]:
+                result["training_status"] = _t["training_status"]
+                result.setdefault("_stale_fields", []).append("training_status")
     except Exception as exc:
         errors.append(f"db_fallback: {exc}")
 
@@ -1166,7 +1174,7 @@ def coach(req: CoachRequest):
         resp = g.get_training_readiness(today)
         if not resp:
             return None
-        r = resp[-1] if isinstance(resp, list) else resp
+        r = resp[0] if isinstance(resp, list) else resp
         return {"score": r.get("readinessScore") or r.get("score"), "level": r.get("readinessLevel") or r.get("level")}
 
     def _hrv():

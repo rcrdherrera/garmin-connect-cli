@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS health_daily (
     rhr                 INTEGER,
     body_battery_high   INTEGER,
     body_battery_low    INTEGER,
+    stress              INTEGER,
     synced_at           TEXT
 );
 
@@ -95,6 +96,7 @@ CREATE TABLE IF NOT EXISTS training_daily (
     readiness_feedback TEXT,
     acute_load        REAL,
     hrv_weekly_avg    INTEGER,
+    training_status   TEXT,
     synced_at         TEXT
 );
 
@@ -136,11 +138,26 @@ CREATE INDEX IF NOT EXISTS idx_conversations_kind
 
 # ─── DB helpers ──────────────────────────────────────────────────────────────
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add columns introduced after initial schema deployment."""
+    migrations = [
+        "ALTER TABLE health_daily   ADD COLUMN stress           INTEGER",
+        "ALTER TABLE training_daily ADD COLUMN training_status  TEXT",
+    ]
+    for sql in migrations:
+        try:
+            conn.execute(sql)
+        except Exception:
+            pass  # column already exists
+    conn.commit()
+
+
 def connect() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    _migrate(conn)
     conn.commit()
     return conn
 
@@ -303,6 +320,13 @@ def _fetch_health_day(client: Garmin, d: date) -> dict:
         console.print(f"  [yellow]body_battery {ds}: {type(exc).__name__}: {exc}[/yellow]")
     time.sleep(API_DELAY)
 
+    # Stress
+    try:
+        row["stress"] = (client.get_stress_data(ds) or {}).get("overallStressLevel")
+    except Exception as exc:
+        console.print(f"  [yellow]stress {ds}: {type(exc).__name__}: {exc}[/yellow]")
+    time.sleep(API_DELAY)
+
     row["synced_at"] = now_iso()
     return row
 
@@ -326,19 +350,19 @@ def sync_health(client: Garmin, conn: sqlite3.Connection, since: date) -> int:
                     hrv_baseline_low, hrv_baseline_high, sleep_score,
                     sleep_duration_s, sleep_deep_s, sleep_rem_s,
                     sleep_light_s, sleep_awake_s, rhr,
-                    body_battery_high, body_battery_low, synced_at)
+                    body_battery_high, body_battery_low, stress, synced_at)
                    VALUES
                    (:date, :hrv_last_night_avg, :hrv_weekly_avg, :hrv_status,
                     :hrv_baseline_low, :hrv_baseline_high, :sleep_score,
                     :sleep_duration_s, :sleep_deep_s, :sleep_rem_s,
                     :sleep_light_s, :sleep_awake_s, :rhr,
-                    :body_battery_high, :body_battery_low, :synced_at)""",
+                    :body_battery_high, :body_battery_low, :stress, :synced_at)""",
                 {k: row.get(k) for k in [
                     "date", "hrv_last_night_avg", "hrv_weekly_avg", "hrv_status",
                     "hrv_baseline_low", "hrv_baseline_high", "sleep_score",
                     "sleep_duration_s", "sleep_deep_s", "sleep_rem_s",
                     "sleep_light_s", "sleep_awake_s", "rhr",
-                    "body_battery_high", "body_battery_low", "synced_at",
+                    "body_battery_high", "body_battery_low", "stress", "synced_at",
                 ]},
             )
             conn.commit()
@@ -355,8 +379,8 @@ def _fetch_training_day(client: Garmin, d: date) -> dict:
     try:
         resp = client.get_training_readiness(ds)
         if resp:
-            # API returns a list for historical days, sometimes a dict for today.
-            # First entry is typically the morning/wake-up reading; use that for DB records.
+            # List is newest-first; resp[0] is the most recent calculation for the day
+            # (post-exercise reset if a workout occurred, otherwise morning wake-up reading).
             r = resp[0] if isinstance(resp, list) else resp
             row["readiness_score"] = r.get("readinessScore") or r.get("score")
             row["readiness_level"] = r.get("readinessLevel") or r.get("level")
@@ -370,6 +394,14 @@ def _fetch_training_day(client: Garmin, d: date) -> dict:
     except Exception as exc:
         console.print(f"  [yellow]readiness {ds}: {type(exc).__name__}: {exc}[/yellow]")
     time.sleep(API_DELAY)
+
+    # Training status
+    try:
+        row["training_status"] = (client.get_training_status(ds) or {}).get("trainingStatusPhrase")
+    except Exception as exc:
+        console.print(f"  [yellow]training_status {ds}: {type(exc).__name__}: {exc}[/yellow]")
+    time.sleep(API_DELAY)
+
     return row
 
 
@@ -389,13 +421,13 @@ def sync_training(client: Garmin, conn: sqlite3.Connection, since: date) -> int:
             conn.execute(
                 """INSERT OR REPLACE INTO training_daily
                    (date, readiness_score, readiness_level, readiness_feedback,
-                    acute_load, hrv_weekly_avg, synced_at)
+                    acute_load, hrv_weekly_avg, training_status, synced_at)
                    VALUES
                    (:date, :readiness_score, :readiness_level, :readiness_feedback,
-                    :acute_load, :hrv_weekly_avg, :synced_at)""",
+                    :acute_load, :hrv_weekly_avg, :training_status, :synced_at)""",
                 {k: row.get(k) for k in [
                     "date", "readiness_score", "readiness_level", "readiness_feedback",
-                    "acute_load", "hrv_weekly_avg", "synced_at",
+                    "acute_load", "hrv_weekly_avg", "training_status", "synced_at",
                 ]},
             )
             conn.commit()
