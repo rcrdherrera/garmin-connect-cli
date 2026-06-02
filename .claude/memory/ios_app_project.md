@@ -54,13 +54,12 @@ GarminCoach/
     └── Resources/    Info.plist, GarminCoach.entitlements
 ```
 
-**App tabs:**
+**App tabs (3 tabs, not 5):**
 1. **Today** (StatusView) — live Garmin metrics: Body Battery, HRV, Readiness, Sleep, RHR, Stress
-2. **Activities** (ActivityListView) — recent activities with HR zones
-3. **Coach** (CoachingView) — session prescription with conversation + history
-4. **Analyze** (AnalyzeView) — period analysis with conversation + history
-5. **Ask** (ChatView) — free-form coach chat with conversation + history
-(EvaluateView is accessed from ActivityListView detail)
+2. **Training** (TrainingView) — activity list grouped by week; Analyze sheet via toolbar button; EvaluateView accessible from activity detail
+3. **Coach** (CoachingView) — structured session types (Weekly/Run/Strength/Lower/Upper) + free-chat mode in one view; uses ConversationThreadView for follow-ups
+(AnalyzeView opens as a sheet from TrainingView toolbar, not a tab)
+(ChatView struct was removed 2026-06-02 as dead code — file still contains shared types: ChatMessage, MessageBubble, TypingIndicator, ConversationThreadView)
 
 **Conversation architecture (2026-05-30):**
 - All three AI tabs (Coach, Analyze, Ask) are now multi-turn conversations

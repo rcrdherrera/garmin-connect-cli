@@ -11,7 +11,7 @@ Two parallel paths set up for Garmin Connect data access:
 - Runtime: uv v0.11.8, `uv run garmin-connect` works
 - Auth: **WORKING** as of 2026-05-03 via browser_auth.py workaround
 - Token storage: C:\Users\ricar\.config\garmin-connect-cli\tokens\
-- **OAuth2 refresh token expires 2026-06-02** — re-run browser_auth.py before that date or CLI will fail with auth errors
+- **OAuth2 refresh token expired 2026-06-02** — if CLI or server returns auth errors, re-run browser_auth.py to get fresh tokens
 - If tokens expire or 429 recurs: use browser_auth.py (C:\garmin-connect-cli\browser_auth.py)
   - Log into connect.garmin.com in browser, open DevTools → Application → Cookies → sso.garmin.com
   - Copy CASTGC cookie (plus others if present), run `uv run python browser_auth.py`, paste cookies

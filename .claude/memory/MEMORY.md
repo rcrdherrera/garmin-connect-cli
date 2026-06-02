@@ -6,7 +6,8 @@
 - [HR zones and LT methodology](hr_zones.md) — Finalized Garmin zones: Z2 top=162 (LT1), Z4 bottom=174 (LT2), Z5 bottom=182 (95% HRmax=191); dual-threshold 5-zone model, science-backed
 - [GarminCoach iOS App](ios_app_project.md) — Swift/HealthKit/Claude app at C:\Users\ricar\Github\Garmin-Coach (github.com/rcrdherrera/Garmin-Coach); all source files written, needs Mac+Xcode to compile
 - [2026 Race Goals and Periodization](race_goals_2026.md) — Half Marathon Jul 12 (training run, not race) + Marathon Aug 30 (A-race); PTT cleared 2026-05-16, now in Phase 1 (Return to Run)
-- [Dev environment and tooling](dev_environment.md) — Warp terminal on Windows; jq required for Warp plugin (winget install jqlang.jq); two-repo sync friction; Mac migration under consideration
+- [Dev environment and tooling](dev_environment.md) — Mac confirmed (Darwin 25.5.0); both repos at /Users/ricardo.herrera/GitHub/; no more Windows/sync friction
 - [Git remote rule](feedback_git_remote.md) — garmin-connect-cli must push to `personal` remote (fork), never `origin` (upstream eddmann repo)
 - [Home gym equipment](home_gym_equipment.md) — DBs/KBs up to 10kg, bench, elastic bands, tibial bar + incline bench; no pull-up bar; tibial raises in every lower body session
 - [Server infrastructure and known bugs](project_server_setup.md) — Ubuntu deployment, self-hosted runner, daily DB sync timer, readiness parsing bug fixed, error logging added
+- [Codebase refactoring 2026-06-02](codebase_refactoring.md) — Architecture review + all changes made: Garmin client cache, DB helper dedup, batch commits, iOS dead code removal, static formatters, delete rollback
