@@ -38,7 +38,7 @@ from create_workouts import (
 TOKEN_DIR    = Path.home() / ".config" / "garmin-connect-cli" / "tokens"
 DB_PATH      = Path.home() / ".config" / "garmin-connect-cli" / "garmin.db"
 PLAN_PATH    = Path.home() / ".config" / "garmin-connect-cli" / "training_plan.json"
-MEMORY_DIR   = Path.home() / ".claude" / "projects" / "C--garmin-connect-cli" / "memory"
+CONTEXT_FILE = Path.home() / ".config" / "garmin-connect-cli" / "athlete_context.md"
 CATALOG_PATH = REPO_ROOT / "data" / "garmin_exercises.json"
 SERVER_TOKEN = os.environ.get("COACH_SERVER_TOKEN", "")
 PORT         = int(os.environ.get("COACH_PORT", "8765"))
@@ -66,18 +66,11 @@ def _load_exercise_catalog() -> tuple[dict[str, dict], str]:
 
 _exercise_catalog, _catalog_str = _load_exercise_catalog()
 
-# ── Athlete context (loaded once at startup) ──────────────────────────────────
-_athlete_context: str = ""
-
-
+# ── Athlete context (hot-reloaded on every request) ───────────────────────────
 def _load_athlete_context() -> str:
-    files = ["training_history.md", "hr_zones.md", "race_goals_2026.md", "home_gym_equipment.md"]
-    parts = []
-    for fname in files:
-        p = MEMORY_DIR / fname
-        if p.exists():
-            parts.append(p.read_text(encoding="utf-8"))
-    return "\n\n---\n\n".join(parts)
+    if CONTEXT_FILE.exists():
+        return CONTEXT_FILE.read_text(encoding="utf-8")
+    return ""
 
 
 async def _today_data_poller():
@@ -116,9 +109,6 @@ async def _today_data_poller():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _athlete_context
-    _athlete_context = _load_athlete_context()
-    print(f"Athlete context loaded ({len(_athlete_context)} chars)")
     _ensure_conversation_tables()
     print("Conversation tables ready")
     poller = asyncio.create_task(_today_data_poller())
@@ -185,7 +175,7 @@ def _ask_claude(system: str, prompt: str, max_tokens: int = 2048) -> str:
 def _coach_system() -> str:
     system = f"""You are a world-class running coach and sports scientist. Athlete permanent context:
 
-{_athlete_context}
+{_load_athlete_context()}
 
 Today: {date.today().isoformat()}
 
@@ -523,7 +513,7 @@ def _system_for_kind(kind: str, live_context: str = "") -> str:
     if kind == "analyze":
         return f"""You are a sports scientist and performance analyst acting as a running coach.
 
-{_athlete_context}
+{_load_athlete_context()}
 
 Today: {today}
 
@@ -535,7 +525,7 @@ Be direct and specific. Use clear structure when helpful. No emojis."""
     # kind == "ask" (default)
     return f"""You are a world-class running coach and sports scientist. Athlete context:
 
-{_athlete_context}
+{_load_athlete_context()}
 
 Today: {today}{live_context}
 
@@ -958,7 +948,7 @@ def analyze(req: AnalyzeRequest):
 
     system = f"""You are a sports scientist and performance analyst.
 
-{_athlete_context}
+{_load_athlete_context()}
 
 Today: {date.today().isoformat()}
 
@@ -1504,6 +1494,23 @@ def delete_conversation(conv_id: int):
     if not _delete_conversation(conv_id):
         raise HTTPException(status_code=404, detail="Conversation not found")
     return {"deleted": conv_id}
+
+
+# ── POST /remember ────────────────────────────────────────────────────────────
+
+class RememberRequest(BaseModel):
+    note: str  # free-text fact to persist, e.g. "I have a 10K on June 20th"
+
+
+@app.post("/remember", dependencies=[AUTH])
+def remember(req: RememberRequest):
+    """Append a persistent fact to athlete_context.md (hot-reloaded on every request)."""
+    CONTEXT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d")
+    entry = f"\n\n<!-- {timestamp} -->\n{req.note.strip()}"
+    with CONTEXT_FILE.open("a", encoding="utf-8") as f:
+        f.write(entry)
+    return {"saved": req.note.strip(), "file": str(CONTEXT_FILE)}
 
 
 if __name__ == "__main__":
