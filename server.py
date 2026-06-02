@@ -582,17 +582,6 @@ def health_check():
     return {"status": "ok", "date": date.today().isoformat()}
 
 
-# ── GET /debug/readiness ──────────────────────────────────────────────────────
-
-@app.get("/debug/readiness", dependencies=[AUTH])
-def debug_readiness(local_date: str | None = Query(default=None)):
-    """Dump raw get_training_readiness response for diagnosis."""
-    g = _garmin()
-    today = local_date or date.today().isoformat()
-    resp = g.get_training_readiness(today)
-    return {"date": today, "type": type(resp).__name__, "raw": resp}
-
-
 # ── POST /sync ────────────────────────────────────────────────────────────────
 
 @app.post("/sync", dependencies=[AUTH])
