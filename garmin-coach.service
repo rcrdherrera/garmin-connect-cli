@@ -5,6 +5,7 @@ After=network.target
 [Service]
 User=ricardo
 WorkingDirectory=/opt/garmin-connect-cli
+Environment=TZ=America/Chicago
 EnvironmentFile=/etc/garmincoach.env
 ExecStart=/opt/garmin-connect-cli/.venv/bin/python server.py
 Restart=always

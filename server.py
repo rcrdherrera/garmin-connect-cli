@@ -20,7 +20,7 @@ REPO_ROOT = Path(__file__).parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 import anthropic
-from fastapi import Depends, FastAPI, HTTPException, Header
+from fastapi import Depends, FastAPI, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from garminconnect import Garmin
 from pydantic import BaseModel
@@ -623,10 +623,10 @@ def sync_today():
 # ── GET /status ───────────────────────────────────────────────────────────────
 
 @app.get("/status", dependencies=[AUTH])
-def get_status():
+def get_status(local_date: str | None = Query(default=None)):
     """Today's full Garmin snapshot: Body Battery, HRV, readiness, sleep, stress, RHR."""
     g = _garmin()
-    today = date.today().isoformat()
+    today = local_date or date.today().isoformat()
     result: dict[str, Any] = {"date": today}
 
     errors: list[str] = []
@@ -1054,6 +1054,7 @@ class CoachRequest(BaseModel):
     type: str = "weekly"
     upload: bool = False
     conversation_id: int | None = None  # pass existing conv to avoid creating a duplicate on upload
+    local_date: str | None = None       # YYYY-MM-DD from device — overrides server clock
     # type accepts: running | strength | lower-body | upper-body | full-body | weekly
 
 
@@ -1138,8 +1139,9 @@ def _save_training_plan(uploaded: list[dict], today: date) -> None:
 def coach(req: CoachRequest):
     """Design today's session or a full weekly plan based on live readiness."""
     g = _garmin()
-    today = date.today().isoformat()
-    week_ago = (date.today() - timedelta(days=7)).isoformat()
+    today_date = date.fromisoformat(req.local_date) if req.local_date else date.today()
+    today = today_date.isoformat()
+    week_ago = (today_date - timedelta(days=7)).isoformat()
 
     live: dict[str, Any] = {}
 
@@ -1192,9 +1194,9 @@ def coach(req: CoachRequest):
     uploaded: list[dict] = []
     if req.upload:
         readiness_score = (live.get("readiness") or {}).get("score")
-        sessions = _build_sessions(req.type, readiness_score, date.today())
+        sessions = _build_sessions(req.type, readiness_score, today_date)
         uploaded = _upload_and_schedule(g, sessions)
-        _save_training_plan(uploaded, date.today())
+        _save_training_plan(uploaded, today_date)
 
     upload_context = ""
     if uploaded:
