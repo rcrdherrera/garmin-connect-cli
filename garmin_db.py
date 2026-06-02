@@ -355,10 +355,11 @@ def _fetch_training_day(client: Garmin, d: date) -> dict:
     try:
         resp = client.get_training_readiness(ds)
         if resp:
-            # API returns a list for historical days, sometimes a dict for today
+            # API returns a list for historical days, sometimes a dict for today.
+            # First entry is typically the morning/wake-up reading; use that for DB records.
             r = resp[0] if isinstance(resp, list) else resp
-            row["readiness_score"] = r.get("score") or r.get("readinessScore")
-            row["readiness_level"] = r.get("level") or r.get("readinessLevel")
+            row["readiness_score"] = r.get("readinessScore") or r.get("score")
+            row["readiness_level"] = r.get("readinessLevel") or r.get("level")
             row["readiness_feedback"] = r.get("feedbackShort") or r.get("readinessFeedbackPhrase")
             row["acute_load"] = r.get("acuteLoad")
             row["hrv_weekly_avg"] = r.get("hrvWeeklyAverage")
