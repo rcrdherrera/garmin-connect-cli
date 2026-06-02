@@ -73,6 +73,40 @@ def _load_athlete_context() -> str:
     return ""
 
 
+def _append_to_context(fact: str) -> None:
+    CONTEXT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d")
+    entry = f"\n\n<!-- {timestamp} -->\n{fact.strip()}"
+    with CONTEXT_FILE.open("a", encoding="utf-8") as f:
+        f.write(entry)
+
+
+# Tool Claude can call during chat to persist facts
+_REMEMBER_TOOL: dict = {
+    "name": "remember_fact",
+    "description": (
+        "Save a persistent fact about the athlete to long-term context. "
+        "Use when the athlete explicitly says to remember something, or naturally "
+        "shares important persistent facts — injuries, race goals, upcoming events, "
+        "equipment, training preferences — that should be available in all future conversations."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "fact": {
+                "type": "string",
+                "description": (
+                    "A concise, self-contained statement of the fact. "
+                    "E.g. 'Ricardo has a 10K race on 2026-06-20' or "
+                    "'Ricardo has a right PTT flare-up as of 2026-06-01'."
+                ),
+            }
+        },
+        "required": ["fact"],
+    },
+}
+
+
 async def _today_data_poller():
     """Sync Garmin data every 5 minutes throughout the day.
 
@@ -1447,14 +1481,38 @@ def chat(req: ChatRequest):
     all_messages = _get_messages(conv_id)
     claude_messages = [{"role": m["role"], "content": m["content"]} for m in all_messages]
 
-    # Call Claude with full conversation context
-    resp = _claude.messages.create(
-        model="claude-opus-4-8",
-        max_tokens=1024,
-        system=[{"type": "text", "text": _system_for_kind(kind, live_context), "cache_control": {"type": "ephemeral"}}],
-        messages=claude_messages,
-    )
-    reply_text = resp.content[0].text
+    # Call Claude — agentic loop so it can call remember_fact before replying
+    system_block = [{"type": "text", "text": _system_for_kind(kind, live_context), "cache_control": {"type": "ephemeral"}}]
+    loop_messages = list(claude_messages)
+    reply_text = ""
+    while True:
+        resp = _claude.messages.create(
+            model="claude-opus-4-8",
+            max_tokens=1024,
+            system=system_block,
+            tools=[_REMEMBER_TOOL],
+            messages=loop_messages,
+        )
+        if resp.stop_reason == "tool_use":
+            tool_results = []
+            for block in resp.content:
+                if block.type == "tool_use" and block.name == "remember_fact":
+                    fact = (block.input or {}).get("fact", "")
+                    if fact:
+                        _append_to_context(fact)
+                        print(f"[remember] Saved: {fact[:80]}")
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": "Saved.",
+                    })
+            loop_messages = loop_messages + [
+                {"role": "assistant", "content": resp.content},
+                {"role": "user", "content": tool_results},
+            ]
+            continue
+        reply_text = next((b.text for b in resp.content if hasattr(b, "text")), "")
+        break
 
     # Persist assistant reply and update conversation timestamp
     assistant_msg = _add_message(conv_id, "assistant", reply_text)
@@ -1505,11 +1563,7 @@ class RememberRequest(BaseModel):
 @app.post("/remember", dependencies=[AUTH])
 def remember(req: RememberRequest):
     """Append a persistent fact to athlete_context.md (hot-reloaded on every request)."""
-    CONTEXT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d")
-    entry = f"\n\n<!-- {timestamp} -->\n{req.note.strip()}"
-    with CONTEXT_FILE.open("a", encoding="utf-8") as f:
-        f.write(entry)
+    _append_to_context(req.note)
     return {"saved": req.note.strip(), "file": str(CONTEXT_FILE)}
 
 
