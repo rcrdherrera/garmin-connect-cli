@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="GarminCoach">
+  <meta name="theme-color" content="#000000">
+  <title>GarminCoach</title>
+  <style>
+    /* ── Tokens ─────────────────────────────────────────── */
+    :root {
+      --bg:       #000;
+      --card:     #141414;
+      --card2:    #1e1e1e;
+      --border:   rgba(255,255,255,0.10);
+      --red:      #FF1F1F;
+      --red-soft: rgba(255,31,31,0.15);
+      --text:     #fff;
+      --dim:      rgba(255,255,255,0.45);
+      --muted:    rgba(255,255,255,0.25);
+      --faint:    rgba(255,255,255,0.10);
+      --orange:   #FF9500;
+      --green:    #34C759;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box; margin: 0; padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    html { height: 100%; }
+    body {
+      height: 100%; height: -webkit-fill-available;
+      background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+      overflow: hidden; -webkit-text-size-adjust: 100%;
+    }
+    button, [role="button"] { cursor: pointer; }
+
+    /* ── Full-app shell ─────────────────────────────────── */
+    #app { display: flex; flex-direction: column; height: 100%; height: -webkit-fill-available; }
+
+    /* ── Header ── */
+    .header {
+      flex-shrink: 0; display: flex; align-items: flex-end; justify-content: space-between;
+      padding: env(safe-area-inset-top, 0px) 16px 12px;
+      min-height: calc(52px + env(safe-area-inset-top, 0px));
+      background: #000; border-bottom: 1px solid var(--border);
+    }
+    .header-title   { font-size: 14px; font-weight: 900; letter-spacing: 2px; }
+    .header-actions { display: flex; gap: 4px; align-items: center; }
+    .icon-btn {
+      background: none; border: none; color: rgba(255,255,255,0.6); cursor: pointer;
+      min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center;
+    }
+    .icon-btn.red { color: var(--red); }
+    .icon-btn svg  { width: 20px; height: 20px; fill: currentColor; }
+
+    /* ── Tab content ── */
+    .tab-content { flex: 1; overflow: hidden; position: relative; }
+    .tab-panel {
+      position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch; display: none; flex-direction: column;
+      scrollbar-width: none;
+    }
+    .tab-panel::-webkit-scrollbar { display: none; }
+    .tab-panel.active { display: flex; }
+
+    /* ── Bottom tab bar ── */
+    .tabbar {
+      flex-shrink: 0; display: flex;
+      height: calc(56px + env(safe-area-inset-bottom, 0px));
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      background: #000; border-top: 1px solid var(--border);
+    }
+    .tab-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 3px; background: none; border: none; cursor: pointer;
+      color: var(--dim); font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+    }
+    .tab-btn.active { color: var(--red); }
+    .tab-btn svg    { width: 22px; height: 22px; fill: currentColor; }
+
+    /* ── Layout helpers ── */
+    .pad  { padding: 12px 16px; }
+    .gap  { display: flex; flex-direction: column; gap: 10px; }
+    .row  { display: flex; gap: 10px; }
+    .row > * { flex: 1; min-width: 0; }
+
+    /* ── Cards ── */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+
+    /* ── Metric ── */
+    .metric-label {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--dim); text-transform: uppercase;
+    }
+    .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .metric-value { font-size: 22px; font-weight: 900; line-height: 1.1; margin-top: 5px; }
+    .metric-unit  { font-size: 12px; font-weight: 400; color: var(--dim); }
+    .metric-sub   { font-size: 12px; color: var(--dim); margin-top: 2px; }
+
+    /* ── Readiness ring ── */
+    .readiness-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 20px 16px; display: flex; align-items: center; gap: 20px;
+    }
+    .ring-svg   { width: 84px; height: 84px; flex-shrink: 0; }
+    .ring-track { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 8; }
+    .ring-fill  { fill: none; stroke-width: 8; stroke-linecap: round; }
+    .ring-val   { fill: #fff; font-family: -apple-system, sans-serif; font-weight: 900; font-size: 22px; }
+    .readiness-level    { font-size: 20px; font-weight: 900; margin-top: 4px; }
+    .readiness-feedback { font-size: 13px; color: var(--dim); margin-top: 6px; line-height: 1.45; }
+
+    /* ── HRV badge ── */
+    .hrv-badge { padding: 3px 10px; border-radius: 4px; font-size: 10px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; }
+    .hrv-badge.BALANCED   { background: rgba(52,199,89,0.15);  color: var(--green);  }
+    .hrv-badge.UNBALANCED { background: rgba(255,149,0,0.15);  color: var(--orange); }
+    .hrv-badge.LOW        { background: rgba(255,31,31,0.15);  color: var(--red);    }
+
+    /* ── Section divider ── */
+    .sec-div { display: flex; align-items: center; gap: 8px; padding: 6px 0 2px; }
+    .sec-bar  { width: 3px; height: 14px; background: var(--red); border-radius: 1px; flex-shrink: 0; }
+    .sec-lbl  { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; }
+
+    /* ── Banners ── */
+    .banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; }
+    .banner.stale { background: rgba(255,149,0,0.07); border: 1px solid rgba(255,149,0,0.3); }
+    .banner.error { background: var(--card); border: 1px solid rgba(255,31,31,0.4); }
+    .banner-bar   { width: 3px; align-self: stretch; border-radius: 1px; flex-shrink: 0; background: var(--red); }
+
+    /* ── Chip row ── */
+    .chip-row {
+      flex-shrink: 0; display: flex; gap: 6px; overflow-x: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding: 8px 16px; background: #000; border-bottom: 1px solid var(--border);
+    }
+    .chip-row::-webkit-scrollbar { display: none; }
+    .chip {
+      padding: 0 14px; min-height: 36px; border-radius: 4px; flex-shrink: 0;
+      font-size: 11px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;
+      border: 1px solid var(--border); background: var(--card2); color: rgba(255,255,255,0.6);
+      cursor: pointer; white-space: nowrap; display: flex; align-items: center;
+      transition: background .12s, color .12s;
+    }
+    .chip.active { background: var(--red); border-color: transparent; color: #fff; }
+
+    /* ── Spinner ── */
+    .spinner { width: 26px; height: 26px; border: 3px solid rgba(255,31,31,0.2); border-top-color: var(--red); border-radius: 50%; }
+    .spinner.sm { width: 16px; height: 16px; border-width: 2px; }
+    @media (prefers-reduced-motion: no-preference) {
+      .spinner { animation: spin .7s linear infinite; }
+    }
+    @media (prefers-reduced-motion: reduce) { .spinner { opacity: 0.6; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .loading-lbl  { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; text-align: center; }
+
+    /* ── Empty state ── */
+    .empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 60px 40px; text-align: center; }
+    .empty-title { font-size: 28px; font-weight: 900; color: var(--faint); text-transform: uppercase; }
+    .empty-sub   { font-size: 14px; color: var(--dim); }
+
+    /* ── Chat ── */
+    .chat-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 6px 0 4px; }
+    .chat-scroll::-webkit-scrollbar { display: none; }
+    .bwrap { padding: 3px 16px; }
+    .bubble {
+      display: inline-block; max-width: calc(100% - 60px);
+      padding: 10px 14px; font-size: 15px; line-height: 1.55; border-radius: 14px; word-break: break-word;
+    }
+    .bubble.user      { background: var(--red); color: #fff; border-radius: 14px 14px 4px 14px; margin-left: auto; display: block; }
+    .bubble.assistant { background: var(--card2); border: 1px solid var(--border); border-radius: 14px 14px 14px 4px; }
+    .bubble .mh  { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--dim); text-transform: uppercase; display: flex; align-items: center; gap: 6px; margin: 10px 0 3px; }
+    .bubble .mh::before { content: ''; width: 3px; height: 11px; background: var(--red); border-radius: 1px; flex-shrink: 0; }
+    .bubble .mh:first-child { margin-top: 0; }
+    .bubble .ml  { margin: 1px 0; }
+    .bubble .mb  { display: flex; gap: 6px; margin: 2px 0; }
+    .bubble .mb::before { content: '—'; color: var(--red); flex-shrink: 0; }
+    .bubble .mr  { height: 1px; background: var(--border); margin: 8px 0; }
+    .bubble .msp { height: 5px; }
+    .bubble strong { color: #fff; font-weight: 700; }
+    .bubble code   { background: rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 4px; font-family: 'SF Mono', monospace; font-size: 13px; }
+
+    /* Typing dots */
+    .typing { display: inline-flex; gap: 5px; padding: 12px 14px; background: var(--card2); border: 1px solid var(--border); border-radius: 14px 14px 14px 4px; }
+    .tdot   { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.5); }
+    @media (prefers-reduced-motion: no-preference) {
+      .tdot { animation: tbounce 1.2s ease-in-out infinite; }
+      .tdot:nth-child(2) { animation-delay: .15s; }
+      .tdot:nth-child(3) { animation-delay: .30s; }
+    }
+    @keyframes tbounce { 0%,60%,100% { transform: translateY(4px); } 30% { transform: translateY(-4px); } }
+
+    /* ── Input bar ── */
+    .input-bar {
+      flex-shrink: 0; border-top: 1px solid var(--border); padding: 10px 12px;
+      padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+      background: #000; display: flex; align-items: flex-end; gap: 8px;
+    }
+    .ifield {
+      flex: 1; background: var(--card2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 14px; color: var(--text); font-size: 15px; font-family: inherit;
+      resize: none; outline: none; max-height: 120px; overflow-y: auto; line-height: 1.4;
+    }
+    .ifield::placeholder { color: var(--dim); }
+    .send-btn {
+      background: none; border: none; cursor: pointer; color: var(--red); padding: 0;
+      display: flex; flex-shrink: 0; min-width: 44px; min-height: 44px; align-items: center; justify-content: center;
+    }
+    .send-btn:disabled { color: var(--faint); pointer-events: none; }
+    .send-btn svg { width: 36px; height: 36px; fill: currentColor; }
+
+    /* ── Upload bar ── */
+    .upload-btn {
+      width: 100%; padding: 13px; background: var(--red); border: none;
+      color: #fff; font-size: 12px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .upload-btn:disabled { opacity: 0.5; }
+    .upload-done { padding: 10px 16px; background: rgba(52,199,89,0.07); border-top: 1px solid rgba(52,199,89,0.2); border-bottom: 1px solid rgba(52,199,89,0.2); }
+    .upload-done-ttl { font-size: 10px; font-weight: 900; letter-spacing: 1.5px; color: var(--green); text-transform: uppercase; margin-bottom: 4px; }
+    .upload-done-row { display: flex; justify-content: space-between; font-size: 12px; color: rgba(255,255,255,0.7); margin: 2px 0; }
+
+    /* ── Activities ── */
+    .act-item { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+    .act-hdr  { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+    .act-name { font-size: 14px; font-weight: 700; }
+    .act-type { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--dim); text-transform: uppercase; margin-top: 2px; }
+    .act-date { font-size: 11px; color: var(--dim); }
+    .act-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+    .st-val   { font-size: 14px; font-weight: 900; }
+    .st-lbl   { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+    .zone-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; margin-top: 10px; gap: 1px; }
+    .zone-seg { height: 100%; }
+
+    /* ── Suggestions ── */
+    .sug-btn {
+      width: 100%; min-height: 48px; padding: 12px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      text-align: left; display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; color: rgba(255,255,255,0.8); font-size: 14px; font-family: inherit; gap: 12px;
+    }
+    .sug-arrow { color: var(--red); flex-shrink: 0; font-size: 14px; }
+
+    /* ── Analyze date inputs ── */
+    .date-row   { display: flex; gap: 8px; padding: 0 16px 10px; }
+    .date-input {
+      flex: 1; background: var(--card2); border: 1px solid var(--border); border-radius: 6px;
+      padding: 10px 12px; color: var(--text); font-size: 13px; font-family: inherit; outline: none;
+      min-height: 44px;
+    }
+    .date-input::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.5; }
+
+    /* ── Action button ── */
+    .abtn {
+      padding: 12px 20px; min-height: 44px; background: var(--red); border: none; border-radius: 6px;
+      color: #fff; font-size: 12px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .abtn:disabled { opacity: 0.5; pointer-events: none; }
+    .abtn.full  { width: 100%; }
+    .abtn.ghost { background: transparent; border: 1px solid var(--border); color: var(--dim); }
+
+    /* ── Plan card ── */
+    .plan-row { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: calc(68px + env(safe-area-inset-bottom, 0px)); left: 50%;
+      transform: translateX(-50%) translateY(12px); background: var(--card2); border: 1px solid var(--border);
+      border-radius: 100px; padding: 9px 18px; font-size: 13px; font-weight: 600;
+      opacity: 0; pointer-events: none; white-space: nowrap; z-index: 100;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      #toast { transition: opacity .2s, transform .2s; }
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ══════════════════════════════════════════════════════
+       LOGIN SCREEN
+       ══════════════════════════════════════════════════════ */
+    #login-screen {
+      position: fixed; inset: 0; z-index: 200; background: #000;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 32px 28px;
+      padding-top: max(32px, env(safe-area-inset-top, 32px));
+      padding-bottom: max(32px, env(safe-area-inset-bottom, 32px));
+    }
+    #login-screen.hidden { display: none; }
+    @media (prefers-reduced-motion: no-preference) {
+      #login-screen.fade-out { animation: fadeOut .3s ease-in forwards; }
+      @keyframes fadeOut { to { opacity: 0; transform: scale(0.97); } }
+    }
+    .login-logo  { font-size: 11px; font-weight: 900; letter-spacing: 3px; color: var(--red); text-transform: uppercase; margin-bottom: 6px; }
+    .login-title { font-size: 32px; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 4px; }
+    .login-sub   { font-size: 14px; color: var(--dim); margin-bottom: 40px; text-align: center; }
+    .login-form  { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 16px; }
+    .login-field { display: flex; flex-direction: column; gap: 6px; }
+    .login-label { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; }
+    .login-input {
+      background: var(--card2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px 16px; color: var(--text); font-size: 15px; font-family: inherit; outline: none;
+      min-height: 52px; width: 100%;
+    }
+    .login-input:focus { border-color: var(--red); }
+    .login-pw-wrap { position: relative; }
+    .login-pw-wrap .login-input { padding-right: 52px; }
+    .pw-toggle {
+      position: absolute; right: 0; top: 0; bottom: 0; width: 52px;
+      display: flex; align-items: center; justify-content: center;
+      background: none; border: none; cursor: pointer; color: var(--dim);
+    }
+    .pw-toggle svg { width: 18px; height: 18px; fill: currentColor; }
+    .login-connect {
+      width: 100%; min-height: 52px; background: var(--red); border: none; border-radius: 8px;
+      color: #fff; font-size: 13px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+      margin-top: 4px;
+    }
+    .login-connect:disabled { opacity: 0.5; pointer-events: none; }
+    .login-error { font-size: 13px; color: #ff6b6b; text-align: center; min-height: 18px; line-height: 1.4; }
+    .login-hint  { font-size: 12px; color: var(--muted); text-align: center; margin-top: 8px; line-height: 1.5; }
+
+    /* ── Settings modal (in-app) ── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 50; display: none; align-items: flex-end; }
+    .modal-overlay.open { display: flex; }
+    .modal-sheet {
+      width: 100%; background: #1a1a1a; border-top: 1px solid var(--border);
+      border-radius: 18px 18px 0 0;
+      padding: 16px 20px max(20px, env(safe-area-inset-bottom, 20px));
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .modal-handle { width: 36px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; margin: 0 auto 6px; }
+    .modal-ttl    { font-size: 14px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
+    .field-lbl    { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--dim); text-transform: uppercase; margin-bottom: 6px; }
+    .text-input   {
+      width: 100%; background: var(--card2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px 14px; color: var(--text); font-size: 15px; font-family: inherit; outline: none;
+      min-height: 48px;
+    }
+    .text-input:focus { border-color: var(--red); }
+    .conn-row  { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .conn-info { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dim); }
+    .cdot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex-shrink: 0; }
+    .cdot.ok  { background: var(--green); }
+    .cdot.err { background: var(--red); }
+  </style>
+</head>
+<body>
+
+<!-- ── Login screen ────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-logo">Garmin Coach</div>
+  <div class="login-title">GarminCoach</div>
+  <div class="login-sub">Personal training dashboard</div>
+  <div class="login-form">
+    <div class="login-field">
+      <label class="login-label" for="l-url">Server URL</label>
+      <input class="login-input" id="l-url" type="url" placeholder="http://100.x.x.x:8765"
+        autocorrect="off" autocapitalize="none" spellcheck="false">
+    </div>
+    <div class="login-field">
+      <label class="login-label" for="l-token">Access Token</label>
+      <div class="login-pw-wrap">
+        <input class="login-input" id="l-token" type="password" placeholder="Your secret token"
+          autocorrect="off" autocapitalize="none" spellcheck="false">
+        <button class="pw-toggle" type="button" onclick="togglePw('l-token',this)" aria-label="Show or hide token">
+          <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="login-error" id="l-error" role="alert" aria-live="polite"></div>
+    <button class="login-connect" id="l-btn" onclick="doLogin()">Connect</button>
+    <div class="login-hint">Connect via Tailscale. Your token is stored locally on this device only.</div>
+  </div>
+</div>
+
+<!-- ── Main app ────────────────────────────────────────── -->
+<div id="app">
+
+  <header class="header" id="app-header">
+    <div id="header-title" style="font-size:14px;font-weight:900;letter-spacing:2px">TODAY</div>
+    <div class="header-actions" id="header-actions"></div>
+  </header>
+
+  <div class="tab-content">
+
+    <!-- TODAY ────────────────────────────────────────── -->
+    <div class="tab-panel active" id="tab-today">
+      <div class="pad gap" id="today-body">
+        <div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Fetching Garmin Data</div></div>
+      </div>
+    </div>
+
+    <!-- TRAINING ─────────────────────────────────────── -->
+    <div class="tab-panel" id="tab-training">
+      <div class="chip-row" id="training-filter-row">
+        <button class="chip active" data-f="all"      onclick="setActFilter('all')">All</button>
+        <button class="chip"        data-f="running"  onclick="setActFilter('running')">Running</button>
+        <button class="chip"        data-f="strength" onclick="setActFilter('strength')">Strength</button>
+      </div>
+      <div class="pad gap" id="training-body">
+        <div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Loading Activities</div></div>
+      </div>
+    </div>
+
+    <!-- COACH ───────────────────────────────────────── -->
+    <div class="tab-panel" id="tab-coach">
+      <div class="chip-row" id="coach-chip-row">
+        <button class="chip active" data-ct="chat"       onclick="setCoachType('chat')">Chat</button>
+        <button class="chip"        data-ct="weekly"     onclick="setCoachType('weekly')">Weekly</button>
+        <button class="chip"        data-ct="running"    onclick="setCoachType('running')">Run</button>
+        <button class="chip"        data-ct="strength"   onclick="setCoachType('strength')">Strength</button>
+        <button class="chip"        data-ct="lower-body" onclick="setCoachType('lower-body')">Lower Body</button>
+        <button class="chip"        data-ct="upper-body" onclick="setCoachType('upper-body')">Upper Body</button>
+      </div>
+      <div id="upload-bar"></div>
+      <div class="chat-scroll" id="coach-msgs"></div>
+      <div class="input-bar">
+        <textarea class="ifield" id="coach-input" placeholder="Ask your coach…" rows="1"
+          oninput="autoH(this)" onkeydown="ckd(event)" aria-label="Message your coach"></textarea>
+        <button class="send-btn" id="coach-send-btn" onclick="coachSend()" aria-label="Send">
+          <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="18"/><path d="M18 9l-1.5 1.5 6 6H10v3h12.5l-6 6L18 27l9-9-9-9z" transform="rotate(-90 18 18)" fill="#000"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ANALYZE ─────────────────────────────────────── -->
+    <div class="tab-panel" id="tab-analyze">
+      <div class="chip-row" id="analyze-chip-row">
+        <button class="chip" data-p="today"     onclick="setAP('today')">Today</button>
+        <button class="chip" data-p="week"      onclick="setAP('week')">This Week</button>
+        <button class="chip" data-p="last-week" onclick="setAP('last-week')">Last Week</button>
+        <button class="chip" data-p="month"     onclick="setAP('month')">Month</button>
+        <button class="chip" data-p="custom"    onclick="setAP('custom')">Custom</button>
+      </div>
+      <div id="analyze-custom-row" style="display:none" class="date-row">
+        <input type="date" class="date-input" id="a-start" aria-label="Start date">
+        <input type="date" class="date-input" id="a-end" aria-label="End date">
+      </div>
+      <div style="padding:0 16px 12px">
+        <button class="abtn full" id="analyze-run-btn" onclick="runAnalyze()">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 12h2v2H2zm3-4h2v6H5zm3-3h2v9H8zm3-4h2v13h-2z"/></svg>
+          Analyze
+        </button>
+      </div>
+      <div class="chat-scroll" id="analyze-msgs"></div>
+      <div class="input-bar" id="analyze-ibar" style="display:none">
+        <textarea class="ifield" id="analyze-input" placeholder="Ask a follow-up…" rows="1"
+          oninput="autoH(this)" onkeydown="akd(event)" aria-label="Follow-up question"></textarea>
+        <button class="send-btn" id="analyze-send-btn" onclick="analyzeSend()" aria-label="Send">
+          <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="18"/><path d="M18 9l-1.5 1.5 6 6H10v3h12.5l-6 6L18 27l9-9-9-9z" transform="rotate(-90 18 18)" fill="#000"/></svg>
+        </button>
+      </div>
+    </div>
+
+  </div><!-- tab-content -->
+
+  <nav class="tabbar" aria-label="Main navigation">
+    <button class="tab-btn active" id="tabbar-today" onclick="switchTab('today')">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
+      Today
+    </button>
+    <button class="tab-btn" id="tabbar-training" onclick="switchTab('training')">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/></svg>
+      Training
+    </button>
+    <button class="tab-btn" id="tabbar-coach" onclick="switchTab('coach')">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12zM7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
+      Coach
+    </button>
+    <button class="tab-btn" id="tabbar-analyze" onclick="switchTab('analyze')">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
+      Analyze
+    </button>
+  </nav>
+</div>
+
+<!-- Settings modal (in-app) -->
+<div class="modal-overlay" id="settings-modal" onclick="outsideClose(event)">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-label="Settings">
+    <div class="modal-handle" aria-hidden="true"></div>
+    <div class="modal-ttl">Settings</div>
+    <div>
+      <div class="field-lbl">Server URL</div>
+      <input type="url" class="text-input" id="s-url" placeholder="http://100.x.x.x:8765" autocorrect="off" autocapitalize="none">
+    </div>
+    <div>
+      <div class="field-lbl">Access Token</div>
+      <input type="password" class="text-input" id="s-token" placeholder="Your secret token">
+    </div>
+    <div class="conn-row">
+      <div class="conn-info"><div class="cdot" id="cdot"></div><span id="clabel">Not tested</span></div>
+      <button class="abtn" onclick="testConn()" style="padding:9px 16px;font-size:11px">Test</button>
+    </div>
+    <button class="abtn full" onclick="saveSettings()">Save</button>
+    <button class="abtn full ghost" onclick="doLogout()">Sign Out</button>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+
+// ── Config ──────────────────────────────────────────────
+const C = {
+  get url()   { return (localStorage.getItem('gc_url')   || '').replace(/\/+$/,'') },
+  get token() { return  localStorage.getItem('gc_token') || '' },
+  set url(v)  { localStorage.setItem('gc_url',   v.replace(/\/+$/,'')) },
+  set token(v){ localStorage.setItem('gc_token', v) },
+  get ok()    { return !!(this.url && this.token) },
+  clear()     { localStorage.removeItem('gc_url'); localStorage.removeItem('gc_token') },
+}
+
+// ── Login ────────────────────────────────────────────────
+function togglePw(id) {
+  const el = document.getElementById(id)
+  el.type = el.type === 'password' ? 'text' : 'password'
+}
+
+async function doLogin() {
+  const urlEl = document.getElementById('l-url')
+  const tokEl = document.getElementById('l-token')
+  const errEl = document.getElementById('l-error')
+  const btn   = document.getElementById('l-btn')
+  const url   = urlEl.value.trim().replace(/\/+$/, '')
+  const token = tokEl.value.trim()
+  errEl.textContent = ''
+  if (!url)   { errEl.textContent = 'Enter your server URL.';   urlEl.focus(); return }
+  if (!token) { errEl.textContent = 'Enter your access token.'; tokEl.focus(); return }
+  btn.disabled = true
+  btn.innerHTML = '<div class="spinner sm"></div> Connecting…'
+  try {
+    const r = await fetch(url + '/health', { headers: { 'Authorization': `Bearer ${token}` } })
+    if (r.status === 401) { errEl.textContent = 'Wrong token — check your access token.'; return }
+    if (r.status === 429) { errEl.textContent = 'Too many attempts — wait 60 seconds.'; return }
+    if (!r.ok) { errEl.textContent = `Server error ${r.status}. Check the URL.`; return }
+    C.url = url; C.token = token
+    const ls = document.getElementById('login-screen')
+    ls.classList.add('fade-out')
+    const enter = () => { ls.classList.add('hidden'); loadToday() }
+    ls.addEventListener('animationend', enter, { once: true })
+    setTimeout(enter, 400) // fallback for reduced-motion
+  } catch(e) {
+    errEl.textContent = 'Could not reach server. Check the URL and Tailscale.'
+  } finally {
+    btn.disabled = false; btn.innerHTML = 'Connect'
+  }
+}
+
+function doLogout() {
+  C.clear(); closeSettings()
+  const ls = document.getElementById('login-screen')
+  ls.classList.remove('hidden', 'fade-out')
+  document.getElementById('l-url').value = ''
+  document.getElementById('l-token').value = ''
+  document.getElementById('l-error').textContent = ''
+  today_loaded = false; training_loaded = false
+}
+
+// ── API ─────────────────────────────────────────────────
+async function api(method, path, body) {
+  const r = await fetch(C.url + path, {
+    method,
+    headers: { 'Authorization': `Bearer ${C.token}`, 'Content-Type': 'application/json' },
+    body: body != null ? JSON.stringify(body) : undefined,
+  })
+  if (r.status === 401) { doLogout(); throw new Error('Session expired — please sign in again') }
+  if (!r.ok) { const t = await r.text().catch(()=>''); throw new Error(t || `HTTP ${r.status}`) }
+  return r.json()
+}
+
+// ── Markdown ────────────────────────────────────────────
+function x(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+function il(s) {
+  return x(s)
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g,'<em>$1</em>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+}
+function md(text) {
+  if (!text) return ''
+  let h = ''
+  for (const ln of text.split('\n')) {
+    if (/^[—]\s+.+\s+[—]$/.test(ln.trim())) {
+      h += `<div class="mh">${x(ln.trim().replace(/^[—]\s*/,'').replace(/\s*[—]$/,''))}</div>`
+    } else if (/^[-•]\s/.test(ln)) {
+      h += `<div class="mb">${il(ln.slice(2))}</div>`
+    } else if (/^\d+\.\s/.test(ln)) {
+      h += `<div class="mb">${il(ln.replace(/^\d+\.\s/,''))}</div>`
+    } else if (/^[-─═]{3,}$/.test(ln.trim())) {
+      h += `<div class="mr"></div>`
+    } else if (!ln.trim()) {
+      h += `<div class="msp"></div>`
+    } else {
+      h += `<div class="ml">${il(ln)}</div>`
+    }
+  }
+  return h
+}
+
+// ── Helpers ─────────────────────────────────────────────
+function autoH(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,120)+'px' }
+let _tt
+function toast(msg) {
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show')
+  clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'),2500)
+}
+function fmt_date(s) { if(!s) return ''; return new Date(s).toLocaleDateString('en-US',{month:'short',day:'numeric'}) }
+function rdy_color(sc) { if(!sc) return 'var(--dim)'; if(sc>=80) return 'var(--green)'; if(sc>=60) return 'var(--red)'; return 'var(--orange)' }
+
+// ── Tab switch ──────────────────────────────────────────
+let active_tab = 'today'
+const TABS = ['today','training','coach','analyze']
+
+function switchTab(name) {
+  TABS.forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active', t===name)
+    document.getElementById('tabbar-'+t).classList.toggle('active', t===name)
+  })
+  active_tab = name
+  renderHeader(name)
+  if (name==='today'    && !today_loaded)    loadToday()
+  if (name==='training' && !training_loaded) loadTraining()
+}
+
+// ── Header ──────────────────────────────────────────────
+const GEAR_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96a7.07 7.07 0 00-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.47.47 0 00-.59.22L2.74 8.87a.47.47 0 00.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 00-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 110-7.2 3.6 3.6 0 010 7.2z"/></svg>`
+const SYNC_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>`
+
+function renderHeader(tab) {
+  const titles = { today:'TODAY', training:'TRAINING', coach:'COACH', analyze:'ANALYZE' }
+  document.getElementById('header-title').textContent = titles[tab]
+  const acts = document.getElementById('header-actions')
+  if (tab==='today') {
+    acts.innerHTML = `
+      <button class="icon-btn" onclick="openSettings()" aria-label="Settings">${GEAR_SVG}</button>
+      <button class="icon-btn red" onclick="syncAndLoad()" aria-label="Sync from Garmin">${SYNC_SVG}</button>`
+  } else {
+    acts.innerHTML = `<button class="icon-btn" onclick="openSettings()" aria-label="Settings">${GEAR_SVG}</button>`
+  }
+}
+
+// ── Settings (in-app) ────────────────────────────────────
+function openSettings() {
+  document.getElementById('s-url').value   = C.url
+  document.getElementById('s-token').value = C.token
+  document.getElementById('cdot').className   = 'cdot'
+  document.getElementById('clabel').textContent = 'Not tested'
+  document.getElementById('settings-modal').classList.add('open')
+}
+function closeSettings() { document.getElementById('settings-modal').classList.remove('open') }
+function outsideClose(e) { if(e.target===document.getElementById('settings-modal')) closeSettings() }
+
+async function testConn() {
+  const url   = document.getElementById('s-url').value.replace(/\/+$/,'')
+  const token = document.getElementById('s-token').value
+  const dot   = document.getElementById('cdot')
+  const lbl   = document.getElementById('clabel')
+  dot.className = 'cdot'; lbl.textContent = 'Testing…'
+  try {
+    const r = await fetch(url+'/health', { headers:{'Authorization':`Bearer ${token}`} })
+    if (r.ok) { dot.className='cdot ok'; lbl.textContent='Connected ✓' }
+    else       { dot.className='cdot err'; lbl.textContent=`HTTP ${r.status}` }
+  } catch(e) { dot.className='cdot err'; lbl.textContent=e.message }
+}
+
+function saveSettings() {
+  C.url   = document.getElementById('s-url').value
+  C.token = document.getElementById('s-token').value
+  closeSettings(); toast('Settings saved')
+  today_loaded=false; training_loaded=false
+  if (active_tab==='today')    loadToday()
+  if (active_tab==='training') loadTraining()
+}
+
+// ── TODAY ────────────────────────────────────────────────
+let today_loaded = false
+
+async function loadToday() {
+  today_loaded = true
+  const b = document.getElementById('today-body')
+  b.innerHTML = `<div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Fetching Garmin Data</div></div>`
+  try {
+    const s = await api('GET','/status')
+    renderToday(s)
+  } catch(e) {
+    document.getElementById('today-body').innerHTML = errBanner(e.message)
+  }
+}
+
+async function syncAndLoad() {
+  try { await api('POST','/sync') } catch(_) {}
+  today_loaded = false; loadToday()
+}
+
+function renderToday(s) {
+  let h = ''
+  if (s._stale_fields?.length) {
+    const fl = s._stale_fields.map(f=>f.replace(/_/g,' ')).join(' & ')
+    h += `<div class="banner stale">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--orange)" aria-hidden="true"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
+      <div><div style="font-size:10px;font-weight:900;letter-spacing:1px;color:var(--orange);text-transform:uppercase">Cached Data</div>
+      <div style="font-size:13px;color:var(--dim)">Garmin hasn’t reported today’s ${x(fl)} yet</div></div>
+    </div>`
+  }
+
+  const sc  = s.readiness?.score ?? null
+  const lv  = s.readiness?.level ?? null
+  const fb  = s.readiness?.feedback ?? null
+  const col = rdy_color(sc)
+  const r36 = 36, circ = 2*Math.PI*r36
+  const off = sc ? circ*(1 - sc/100) : circ
+  h += `<div class="readiness-card">
+    <svg class="ring-svg" viewBox="0 0 84 84" role="img" aria-label="Readiness score ${sc??'unknown'}">
+      <circle class="ring-track" cx="42" cy="42" r="${r36}"/>
+      <circle class="ring-fill" cx="42" cy="42" r="${r36}" stroke="${col}"
+        stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
+        transform="rotate(-90 42 42)"/>
+      <text class="ring-val" x="42" y="48" text-anchor="middle">${sc??'—'}</text>
+    </svg>
+    <div style="flex:1;min-width:0">
+      <div class="metric-label">Readiness</div>
+      <div class="readiness-level" style="color:${col}">${lv ? lv.replace(/_/g,' ') : '—'}</div>
+      ${fb ? `<div class="readiness-feedback">${x(fb)}</div>` : ''}
+    </div>
+  </div>`
+
+  const bb = s.body_battery, sl = s.sleep
+  if (bb||sl) {
+    h += `<div class="row">`
+    if (bb) h += `<div class="card">
+      <div class="metric-label"><span class="dot" style="background:var(--orange)"></span>Body Battery</div>
+      <div class="metric-value">${bb.current??bb.high??'—'}</div>
+      ${bb.low!=null?`<div class="metric-sub">Low: ${bb.low}</div>`:''}
+    </div>`
+    if (sl) {
+      const sc2 = sl.score>=80?'var(--green)':sl.score>=60?'var(--orange)':sl.score?'var(--red)':'var(--dim)'
+      h += `<div class="card">
+        <div class="metric-label"><span class="dot" style="background:${sc2}"></span>Sleep</div>
+        <div class="metric-value">${sl.score??'—'}</div>
+        <div class="metric-sub">${sl.duration_h??'—'}h · ${sl.deep_h??'—'}h deep</div>
+      </div>`
+    }
+    h += `</div>`
+  }
+
+  if (s.rhr || s.stress!=null) {
+    h += `<div class="row">`
+    if (s.rhr) h += `<div class="card">
+      <div class="metric-label"><span class="dot" style="background:var(--red)"></span>Resting HR</div>
+      <div class="metric-value">${s.rhr} <span class="metric-unit">bpm</span></div>
+    </div>`
+    if (s.stress!=null) {
+      const sc3 = s.stress<26?'var(--green)':s.stress<51?'var(--orange)':'var(--red)'
+      h += `<div class="card">
+        <div class="metric-label"><span class="dot" style="background:${sc3}"></span>Stress</div>
+        <div class="metric-value" style="color:${sc3}">${s.stress}</div>
+      </div>`
+    }
+    if (s.training_status) h += `<div class="card">
+      <div class="metric-label">Training Status</div>
+      <div style="font-size:14px;font-weight:900;margin-top:5px">${x(s.training_status)}</div>
+    </div>`
+    h += `</div>`
+  }
+
+  const hrv = s.hrv
+  if (hrv?.last_night||hrv?.weekly_avg) {
+    const badge = hrv.status ? `<span class="hrv-badge ${hrv.status}">${hrv.status}</span>` : ''
+    h += `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="metric-label">HRV</div>${badge}
+      </div>
+      <div style="display:flex;gap:20px;margin-top:10px;flex-wrap:wrap">
+        ${hrv.last_night!=null?`<div><div style="font-size:22px;font-weight:900">${hrv.last_night}<span class="metric-unit"> ms</span></div><div class="metric-sub">Last Night</div></div>`:''}
+        ${hrv.weekly_avg!=null?`<div><div style="font-size:22px;font-weight:900">${hrv.weekly_avg}<span class="metric-unit"> ms</span></div><div class="metric-sub">Weekly Avg</div></div>`:''}
+        ${hrv.baseline_low!=null?`<div><div style="font-size:16px;font-weight:700;color:var(--dim)">${hrv.baseline_low}–${hrv.baseline_high}</div><div class="metric-sub">Baseline</div></div>`:''}
+      </div>
+    </div>`
+  }
+  document.getElementById('today-body').innerHTML = h
+}
+
+// ── TRAINING ─────────────────────────────────────────────
+let training_loaded = false
+let all_acts = []
+let act_filter = 'all'
+
+async function loadTraining() {
+  training_loaded = true
+  const b = document.getElementById('training-body')
+  b.innerHTML = `<div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Loading Activities</div></div>`
+  try {
+    all_acts = await api('GET','/activities?limit=40')
+    if (!Array.isArray(all_acts)) all_acts = all_acts.activities || []
+    renderActs()
+    try { const p=await api('GET','/plan'); if(p?.sessions?.length) appendPlan(p) } catch(_) {}
+  } catch(e) { b.innerHTML = errBanner(e.message) }
+}
+
+function setActFilter(f) {
+  act_filter=f
+  document.querySelectorAll('#training-filter-row .chip').forEach(c=>c.classList.toggle('active',c.dataset.f===f))
+  renderActs()
+}
+
+function renderActs() {
+  let acts = all_acts
+  if (act_filter==='running')  acts=acts.filter(a=>(a.type||'').toLowerCase().includes('run'))
+  if (act_filter==='strength') acts=acts.filter(a=>{const t=(a.type||'').toLowerCase();return t.includes('strength')||t.includes('fitness')})
+  const b=document.getElementById('training-body')
+  if (!acts.length) { b.innerHTML=`<div class="empty"><div class="empty-title">No Activities</div></div>`; return }
+  let h=''
+  for (const a of acts) {
+    const tp=(a.type||'').replace(/_/g,' ')
+    const tz=(a.hrZ1s||0)+(a.hrZ2s||0)+(a.hrZ3s||0)+(a.hrZ4s||0)+(a.hrZ5s||0)
+    const zbar = tz>0 ? `<div class="zone-bar" aria-hidden="true">${
+      [[a.hrZ1s,'#4a9eff'],[a.hrZ2s,'#34c759'],[a.hrZ3s,'#ffd60a'],[a.hrZ4s,'#ff9500'],[a.hrZ5s,'#FF1F1F']]
+      .filter(z=>z[0]>0).map(z=>`<div class="zone-seg" style="flex:${z[0]};background:${z[1]}"></div>`).join('')
+    }</div>` : ''
+    h+=`<div class="act-item">
+      <div class="act-hdr">
+        <div><div class="act-name">${x(a.name||'Activity')}</div><div class="act-type">${x(tp)}</div></div>
+        <div class="act-date">${fmt_date(a.startTimeLocal)}</div>
+      </div>
+      <div class="act-stats">
+        ${a.distance_km?`<div><div class="st-val">${a.distance_km}</div><div class="st-lbl">km</div></div>`:''}
+        ${a.duration_min?`<div><div class="st-val">${Math.round(a.duration_min)}m</div><div class="st-lbl">time</div></div>`:''}
+        ${a.averageHR?`<div><div class="st-val">${a.averageHR}</div><div class="st-lbl">avg hr</div></div>`:''}
+        ${a.avgCadence?`<div><div class="st-val">${Math.round(a.avgCadence)}</div><div class="st-lbl">spm</div></div>`:''}
+        ${a.aerobicTE?`<div><div class="st-val">${a.aerobicTE}</div><div class="st-lbl">aer te</div></div>`:''}
+      </div>${zbar}
+    </div>`
+  }
+  h+=`<div class="sec-div"><div class="sec-bar" aria-hidden="true"></div><div class="sec-lbl">Post-Run Eval</div></div>
+    <button class="abtn full" id="eval-btn" onclick="doEval()">Evaluate Last Run</button>
+    <div id="eval-out"></div>`
+  b.innerHTML=h
+}
+
+function appendPlan(plan) {
+  const s=plan.sessions||[]; if(!s.length) return
+  let h=`<div class="sec-div"><div class="sec-bar" aria-hidden="true"></div><div class="sec-lbl">Plan · ${x(plan.week_start||'')} – ${x(plan.week_end||'')}</div></div>`
+  for (const ss of s) {
+    const ok=ss.completed,err=ss.error
+    const col=ok?'var(--green)':err?'var(--red)':'var(--dim)'
+    const sym=ok?'✓':err?'✗':'·'
+    h+=`<div class="plan-row">
+      <div style="font-size:16px;font-weight:900;color:${col};width:16px;text-align:center" aria-label="${ok?'Completed':err?'Error':'Pending'}">${sym}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:700">${x(ss.name||'Session')}</div>
+        <div style="font-size:12px;color:var(--dim)">${x(ss.date||'')}</div>
+      </div>
+    </div>`
+  }
+  document.getElementById('training-body').innerHTML += h
+}
+
+async function doEval() {
+  const btn=document.getElementById('eval-btn'), out=document.getElementById('eval-out')
+  btn.disabled=true; btn.innerHTML=`<div class="spinner sm"></div> Evaluating…`; out.innerHTML=''
+  try {
+    const d=await api('POST','/evaluate',{})
+    out.innerHTML=`<div class="bwrap"><div class="bubble assistant">${md(d.report)}</div></div>`
+    out.scrollIntoView({behavior:'smooth'})
+  } catch(e) { out.innerHTML=errBanner(e.message) }
+  finally { btn.disabled=false; btn.innerHTML='Evaluate Last Run' }
+}
+
+// ── COACH ────────────────────────────────────────────────
+let ct='chat', c_cid=null, c_msgs=[], c_loading=false
+
+const SUGS=['How\'s my training load this week?','Am I ready for a hard session today?','What pace should I target for easy runs?','How\'s my HRV trend lately?']
+
+function setCoachType(t) {
+  ct=t; c_cid=null; c_msgs=[]
+  document.querySelectorAll('#coach-chip-row .chip').forEach(c=>c.classList.toggle('active',c.dataset.ct===t))
+  renderCoach(); updateUploadBar()
+}
+
+function renderCoach() {
+  const area=document.getElementById('coach-msgs')
+  if (!c_msgs.length) {
+    if (ct==='chat') {
+      area.innerHTML=`
+        <div class="empty" style="padding:36px 24px 20px">
+          <div style="font-size:44px;line-height:1;margin-bottom:4px" aria-hidden="true">&#x1F4AC;</div>
+          <div style="font-size:18px;font-weight:900;letter-spacing:1px">ASK YOUR COACH</div>
+          <div style="font-size:13px;color:var(--dim);text-align:center">Evidence-based answers about your training, recovery, and goals.</div>
+        </div>
+        <div style="padding:0 16px;display:flex;flex-direction:column;gap:8px;padding-bottom:8px">
+          ${SUGS.map(s=>`<button class="sug-btn" onclick="coachSug(${JSON.stringify(s)})"><span>${x(s)}</span><span class="sug-arrow" aria-hidden="true">↗</span></button>`).join('')}
+        </div>`
+    } else {
+      const lbl=ct.replace(/-/g,' ')
+      area.innerHTML=`<div class="empty">
+        <div class="empty-title">No Session</div>
+        <div class="empty-sub">Tap Coach to design a ${x(lbl)} session.</div>
+      </div>
+      <div style="padding:0 16px 16px"><button class="abtn full" onclick="getCoaching()">Get Coaching</button></div>`
+    }
+    if (c_loading) area.innerHTML=`<div class="bwrap"><div class="typing" aria-label="Coach is typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`
+    return
+  }
+  area.innerHTML=c_msgs.map(m=>`<div class="bwrap"><div class="bubble ${m.r}">${m.r==='assistant'?md(m.t):x(m.t)}</div></div>`).join('')
+  if (c_loading) area.innerHTML+=`<div class="bwrap"><div class="typing" aria-label="Coach is typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`
+  if (ct!=='chat'&&!c_loading) area.innerHTML+=`<div style="padding:12px 16px"><button class="abtn full" onclick="getCoaching()">Re-generate</button></div>`
+  area.scrollTop=area.scrollHeight
+}
+
+function updateUploadBar() {
+  const bar=document.getElementById('upload-bar')
+  if (ct==='chat'||!c_msgs.length) { bar.innerHTML=''; return }
+  bar.innerHTML=`<button class="upload-btn" id="ubtn" onclick="uploadWorkouts()">↑ UPLOAD TO GARMIN</button>`
+}
+
+async function getCoaching() {
+  if (c_loading) return
+  c_loading=true; c_msgs=[]; renderCoach()
+  try {
+    const d=await api('POST','/coach',{type:ct,upload:false})
+    c_cid=d.conversation_id; c_msgs=[{r:'assistant',t:d.brief}]
+  } catch(e) { c_msgs=[{r:'assistant',t:'Error: '+e.message}] }
+  finally { c_loading=false; renderCoach(); updateUploadBar() }
+}
+
+async function uploadWorkouts() {
+  const btn=document.getElementById('ubtn')
+  if(btn){btn.disabled=true;btn.textContent='UPLOADING…'}
+  try {
+    const d=await api('POST','/coach',{type:ct,upload:true,conversation_id:c_cid})
+    const ws=d.uploaded_workouts||[]
+    document.getElementById('upload-bar').innerHTML=`<div class="upload-done">
+      <div class="upload-done-ttl">✓ Uploaded to Garmin</div>
+      ${ws.map(w=>`<div class="upload-done-row"><span>${x(w.name)}</span><span style="color:var(--dim)">${x(w.date)}</span></div>`).join('')}
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">Sync your watch via the Connect app.</div>
+    </div>`
+    if(d.brief){c_msgs[0]={r:'assistant',t:d.brief};renderCoach()}
+  } catch(e) { if(btn){btn.disabled=false;btn.textContent='↑ UPLOAD TO GARMIN'} toast(e.message) }
+}
+
+async function coachSend() {
+  const el=document.getElementById('coach-input'), t=el.value.trim()
+  if(!t||c_loading) return; el.value=''; el.style.height='auto'; await cSendMsg(t)
+}
+async function coachSug(t) { await cSendMsg(t) }
+
+async function cSendMsg(text) {
+  c_msgs.push({r:'user',t:text}); c_loading=true; renderCoach()
+  try {
+    const d=await api('POST','/chat',{message:text,conversation_id:c_cid,kind:ct==='chat'?'ask':'coach'})
+    c_cid=d.conversation_id; c_msgs.push({r:'assistant',t:d.message.content})
+  } catch(e) { c_msgs.push({r:'assistant',t:'Error: '+e.message}) }
+  finally { c_loading=false; renderCoach() }
+}
+function ckd(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();coachSend()} }
+
+// ── ANALYZE ──────────────────────────────────────────────
+let ap=null, a_cid=null, a_msgs=[], a_loading=false
+
+function setAP(p) {
+  ap=p
+  document.querySelectorAll('#analyze-chip-row .chip').forEach(c=>c.classList.toggle('active',c.dataset.p===p))
+  const cr=document.getElementById('analyze-custom-row')
+  cr.style.display = p==='custom'?'flex':'none'
+  if(p==='custom'){
+    const t=new Date().toISOString().slice(0,10), w=new Date(Date.now()-7*864e5).toISOString().slice(0,10)
+    document.getElementById('a-start').value=w; document.getElementById('a-end').value=t
+  }
+}
+
+function buildPP() {
+  if(!ap) return null
+  if(ap==='today') return new Date().toISOString().slice(0,10)
+  if(ap==='custom'){
+    const s=document.getElementById('a-start').value, e=document.getElementById('a-end').value
+    return (s&&e)?`${s}:${e}`:null
+  }
+  return ap
+}
+
+async function runAnalyze() {
+  const pp=buildPP(); if(!pp){toast('Select a period first');return}
+  a_loading=true; a_cid=null; a_msgs=[]
+  document.getElementById('analyze-ibar').style.display='none'
+  renderAnalyze()
+  try {
+    const d=await api('POST','/analyze',{period:pp})
+    a_cid=d.conversation_id; a_msgs=[{r:'assistant',t:d.report}]
+    document.getElementById('analyze-ibar').style.display='flex'
+  } catch(e) { a_msgs=[{r:'assistant',t:'Error: '+e.message}] }
+  finally { a_loading=false; renderAnalyze() }
+}
+
+function renderAnalyze() {
+  const area=document.getElementById('analyze-msgs')
+  if(!a_msgs.length) {
+    area.innerHTML=a_loading?`<div class="bwrap"><div class="typing" aria-label="Analyzing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`:''
+    return
+  }
+  area.innerHTML=a_msgs.map(m=>`<div class="bwrap"><div class="bubble ${m.r}">${m.r==='assistant'?md(m.t):x(m.t)}</div></div>`).join('')
+  if(a_loading) area.innerHTML+=`<div class="bwrap"><div class="typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`
+  area.scrollTop=area.scrollHeight
+}
+
+async function analyzeSend() {
+  const el=document.getElementById('analyze-input'), t=el.value.trim()
+  if(!t||a_loading) return; el.value=''; el.style.height='auto'
+  a_msgs.push({r:'user',t}); a_loading=true; renderAnalyze()
+  try {
+    const d=await api('POST','/chat',{message:t,conversation_id:a_cid,kind:'analyze'})
+    a_cid=d.conversation_id; a_msgs.push({r:'assistant',t:d.message.content})
+  } catch(e) { a_msgs.push({r:'assistant',t:'Error: '+e.message}) }
+  finally { a_loading=false; renderAnalyze() }
+}
+function akd(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();analyzeSend()} }
+
+// ── Error helper ─────────────────────────────────────────
+function errBanner(msg) {
+  return `<div class="banner error"><div class="banner-bar" aria-hidden="true"></div><div style="font-size:14px">${x(msg)}</div></div>`
+}
+
+// ── Boot ─────────────────────────────────────────────────
+renderHeader('today')
+if (C.ok) {
+  document.getElementById('login-screen').classList.add('hidden')
+  loadToday()
+} else {
+  setTimeout(() => document.getElementById('l-url').focus(), 100)
+}
+
+document.getElementById('l-url').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('l-token').focus()
+})
+document.getElementById('l-token').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin()
+})
+</script>
+</body>
+</html>

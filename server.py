@@ -8,6 +8,8 @@ import json
 import math
 import os
 import sqlite3
+import time
+from collections import defaultdict
 import subprocess
 import sys
 from contextlib import asynccontextmanager
@@ -20,8 +22,10 @@ REPO_ROOT = Path(__file__).parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 import anthropic
-from fastapi import Depends, FastAPI, HTTPException, Header, Query
+from fastapi import Depends, FastAPI, HTTPException, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from garminconnect import Garmin
 from pydantic import BaseModel
 
@@ -196,9 +200,37 @@ app.add_middleware(
 )
 
 
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        return response
+
+
+app.add_middleware(_SecurityHeadersMiddleware)
+
+
+# ── Auth rate limiter ─────────────────────────────────────────────────────────
+_auth_failures: dict[str, list[float]] = defaultdict(list)
+_AUTH_WINDOW    = 60.0   # sliding window in seconds
+_AUTH_MAX_TRIES = 20     # max failures per window per IP
+
+
 # ── Auth dependency ───────────────────────────────────────────────────────────
-def _auth(authorization: str = Header(default="")):
+def _auth(request: Request, authorization: str = Header(default="")):
+    ip  = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+
+    # Evict old entries then check rate limit
+    _auth_failures[ip] = [t for t in _auth_failures[ip] if now - t < _AUTH_WINDOW]
+    if len(_auth_failures[ip]) >= _AUTH_MAX_TRIES:
+        raise HTTPException(status_code=429, detail="Too many failed attempts — wait 60 s")
+
     if authorization != f"Bearer {SERVER_TOKEN}":
+        _auth_failures[ip].append(now)
         raise HTTPException(status_code=401, detail="Invalid or missing token")
 
 
@@ -631,6 +663,11 @@ Keep answers focused and actionable. Use clear structure when helpful."""
 # ═══════════════════════════════════════════════════════════════════════════════
 # ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════════════
+
+
+@app.get("/", include_in_schema=False)
+def web_app():
+    return FileResponse(REPO_ROOT / "static" / "index.html")
 
 
 @app.get("/health")
