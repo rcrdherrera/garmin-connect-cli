@@ -701,7 +701,17 @@ async function loadToday() {
 }
 
 async function syncAndLoad() {
-  try { await api('POST','/sync') } catch(_) {}
+  const btn = document.querySelector('[onclick="syncAndLoad()"]')
+  if (btn) { btn.style.pointerEvents='none'; btn.style.opacity='0.4' }
+  try {
+    await api('POST','/sync')
+    toast('Synced ✓')
+  } catch(e) {
+    toast('Sync failed: ' + e.message)
+    if (btn) { btn.style.pointerEvents=''; btn.style.opacity='' }
+    return
+  }
+  if (btn) { btn.style.pointerEvents=''; btn.style.opacity='' }
   today_loaded = false; loadToday()
 }
 
