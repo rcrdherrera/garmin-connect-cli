@@ -6,23 +6,26 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="GarminCoach">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#050505">
   <title>GarminCoach</title>
   <style>
-    /* ── Tokens ─────────────────────────────────────────── */
+    /* ── Design tokens ──────────────────────────────────────── */
     :root {
-      --bg:       #000;
-      --card:     #141414;
-      --card2:    #1e1e1e;
-      --border:   rgba(255,255,255,0.10);
+      --bg:       #050505;
+      --card:     #111111;
+      --card2:    #1a1a1a;
+      --border:   rgba(255,255,255,0.11);
+      --border-s: rgba(255,255,255,0.28);
       --red:      #FF1F1F;
-      --red-soft: rgba(255,31,31,0.15);
-      --text:     #fff;
-      --dim:      rgba(255,255,255,0.45);
-      --muted:    rgba(255,255,255,0.25);
-      --faint:    rgba(255,255,255,0.10);
+      --red-dim:  rgba(255,31,31,0.10);
+      --red-glow: rgba(255,31,31,0.22);
+      --text:     #ffffff;
+      --dim:      rgba(255,255,255,0.46);
+      --muted:    rgba(255,255,255,0.24);
+      --faint:    rgba(255,255,255,0.08);
       --orange:   #FF9500;
       --green:    #34C759;
+      --blue:     #4a9eff;
     }
     *, *::before, *::after {
       box-sizing: border-box; margin: 0; padding: 0;
@@ -38,26 +41,33 @@
     }
     button, [role="button"] { cursor: pointer; }
 
-    /* ── Full-app shell ─────────────────────────────────── */
+    /* ── Shell ──────────────────────────────────────────────── */
     #app { display: flex; flex-direction: column; height: 100%; height: -webkit-fill-available; }
 
-    /* ── Header ── */
+    /* ── Header ─────────────────────────────────────────────── */
     .header {
       flex-shrink: 0; display: flex; align-items: flex-end; justify-content: space-between;
       padding: env(safe-area-inset-top, 0px) 16px 12px;
       min-height: calc(52px + env(safe-area-inset-top, 0px));
-      background: #000; border-bottom: 1px solid var(--border);
+      background: var(--bg); border-bottom: 1.5px solid var(--border);
     }
-    .header-title   { font-size: 14px; font-weight: 900; letter-spacing: 2px; }
-    .header-actions { display: flex; gap: 4px; align-items: center; }
+    .header-left   { display: flex; align-items: center; gap: 8px; }
+    .header-title  { font-size: 13px; font-weight: 900; letter-spacing: 2.5px; text-transform: uppercase; }
+    .header-actions { display: flex; gap: 2px; align-items: center; }
     .icon-btn {
-      background: none; border: none; color: rgba(255,255,255,0.6); cursor: pointer;
+      background: none; border: none; color: rgba(255,255,255,0.55); cursor: pointer;
       min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center;
     }
     .icon-btn.red { color: var(--red); }
     .icon-btn svg  { width: 20px; height: 20px; fill: currentColor; }
+    .back-btn {
+      display: flex; align-items: center; gap: 6px; background: none; border: none;
+      color: var(--red); font-size: 12px; font-weight: 900; letter-spacing: 1px;
+      text-transform: uppercase; cursor: pointer; padding: 6px 4px; min-height: 44px;
+    }
+    .back-btn svg { width: 16px; height: 16px; fill: currentColor; }
 
-    /* ── Tab content ── */
+    /* ── Tab content ─────────────────────────────────────────── */
     .tab-content { flex: 1; overflow: hidden; position: relative; }
     .tab-panel {
       position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain;
@@ -67,112 +77,194 @@
     .tab-panel::-webkit-scrollbar { display: none; }
     .tab-panel.active { display: flex; }
 
-    /* ── Bottom tab bar ── */
+    /* ── Bottom tab bar ──────────────────────────────────────── */
     .tabbar {
       flex-shrink: 0; display: flex;
       height: calc(56px + env(safe-area-inset-bottom, 0px));
       padding-bottom: env(safe-area-inset-bottom, 0px);
-      background: #000; border-top: 1px solid var(--border);
+      background: var(--bg); border-top: 1.5px solid var(--border);
     }
     .tab-btn {
       flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: 3px; background: none; border: none; cursor: pointer;
-      color: var(--dim); font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+      color: var(--muted); font-size: 10px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase;
+      transition: color .12s;
     }
     .tab-btn.active { color: var(--red); }
     .tab-btn svg    { width: 22px; height: 22px; fill: currentColor; }
 
-    /* ── Layout helpers ── */
+    /* ── Layout helpers ──────────────────────────────────────── */
     .pad  { padding: 12px 16px; }
     .gap  { display: flex; flex-direction: column; gap: 10px; }
     .row  { display: flex; gap: 10px; }
     .row > * { flex: 1; min-width: 0; }
 
-    /* ── Cards ── */
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+    /* ── Cards ───────────────────────────────────────────────── */
+    .card {
+      background: var(--card); border: 1.5px solid var(--border);
+      border-radius: 4px; padding: 14px;
+    }
 
-    /* ── Metric ── */
+    /* ── Metric ──────────────────────────────────────────────── */
     .metric-label {
       display: flex; align-items: center; gap: 5px;
-      font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--dim); text-transform: uppercase;
+      font-size: 9px; font-weight: 900; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase;
     }
     .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
     .metric-value { font-size: 22px; font-weight: 900; line-height: 1.1; margin-top: 5px; }
     .metric-unit  { font-size: 12px; font-weight: 400; color: var(--dim); }
     .metric-sub   { font-size: 12px; color: var(--dim); margin-top: 2px; }
 
-    /* ── Readiness ring ── */
+    /* ── Readiness ring ──────────────────────────────────────── */
     .readiness-card {
-      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 4px;
       padding: 20px 16px; display: flex; align-items: center; gap: 20px;
     }
     .ring-svg   { width: 84px; height: 84px; flex-shrink: 0; }
-    .ring-track { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 8; }
+    .ring-track { fill: none; stroke: rgba(255,255,255,0.07); stroke-width: 8; }
     .ring-fill  { fill: none; stroke-width: 8; stroke-linecap: round; }
     .ring-val   { fill: #fff; font-family: -apple-system, sans-serif; font-weight: 900; font-size: 22px; }
     .readiness-level    { font-size: 20px; font-weight: 900; margin-top: 4px; }
     .readiness-feedback { font-size: 13px; color: var(--dim); margin-top: 6px; line-height: 1.45; }
 
-    /* ── HRV badge ── */
-    .hrv-badge { padding: 3px 10px; border-radius: 4px; font-size: 10px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; }
-    .hrv-badge.BALANCED   { background: rgba(52,199,89,0.15);  color: var(--green);  }
-    .hrv-badge.UNBALANCED { background: rgba(255,149,0,0.15);  color: var(--orange); }
-    .hrv-badge.LOW        { background: rgba(255,31,31,0.15);  color: var(--red);    }
+    /* ── HRV badge ───────────────────────────────────────────── */
+    .hrv-badge { padding: 3px 8px; border-radius: 2px; font-size: 9px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase; }
+    .hrv-badge.BALANCED   { background: rgba(52,199,89,0.12); border: 1px solid rgba(52,199,89,0.3); color: var(--green); }
+    .hrv-badge.UNBALANCED { background: rgba(255,149,0,0.12); border: 1px solid rgba(255,149,0,0.3); color: var(--orange); }
+    .hrv-badge.LOW        { background: rgba(255,31,31,0.12); border: 1px solid rgba(255,31,31,0.3); color: var(--red); }
 
-    /* ── Section divider ── */
-    .sec-div { display: flex; align-items: center; gap: 8px; padding: 6px 0 2px; }
-    .sec-bar  { width: 3px; height: 14px; background: var(--red); border-radius: 1px; flex-shrink: 0; }
-    .sec-lbl  { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; }
+    /* ── Section divider ─────────────────────────────────────── */
+    .sec-div { display: flex; align-items: center; gap: 8px; padding: 10px 0 2px; }
+    .sec-bar  { width: 3px; height: 13px; background: var(--red); border-radius: 1px; flex-shrink: 0; }
+    .sec-lbl  { font-size: 9px; font-weight: 900; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
 
-    /* ── Banners ── */
-    .banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; }
-    .banner.stale { background: rgba(255,149,0,0.07); border: 1px solid rgba(255,149,0,0.3); }
-    .banner.error { background: var(--card); border: 1px solid rgba(255,31,31,0.4); }
+    /* ── Banners ─────────────────────────────────────────────── */
+    .banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 4px; }
+    .banner.stale { background: rgba(255,149,0,0.06); border: 1.5px solid rgba(255,149,0,0.25); }
+    .banner.error { background: var(--card); border: 1.5px solid rgba(255,31,31,0.35); }
     .banner-bar   { width: 3px; align-self: stretch; border-radius: 1px; flex-shrink: 0; background: var(--red); }
 
-    /* ── Chip row ── */
-    .chip-row {
-      flex-shrink: 0; display: flex; gap: 6px; overflow-x: auto; overscroll-behavior: contain;
-      -webkit-overflow-scrolling: touch; scrollbar-width: none;
-      padding: 8px 16px; background: #000; border-bottom: 1px solid var(--border);
+    /* ── Filter bar (Training tab) ───────────────────────────── */
+    .filter-bar {
+      flex-shrink: 0; background: var(--bg); border-bottom: 1.5px solid var(--border);
+      padding: 8px 16px; display: flex; flex-direction: column; gap: 6px;
     }
-    .chip-row::-webkit-scrollbar { display: none; }
-    .chip {
-      padding: 0 14px; min-height: 36px; border-radius: 4px; flex-shrink: 0;
-      font-size: 11px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;
-      border: 1px solid var(--border); background: var(--card2); color: rgba(255,255,255,0.6);
-      cursor: pointer; white-space: nowrap; display: flex; align-items: center;
-      transition: background .12s, color .12s;
+    .filter-row { display: flex; gap: 5px; align-items: center; }
+    .fchip {
+      padding: 0 11px; height: 30px; border: 1.5px solid var(--border); border-radius: 3px;
+      background: transparent; color: var(--dim);
+      font-size: 10px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;
+      cursor: pointer; white-space: nowrap; transition: border-color .1s, color .1s, background .1s;
+      flex-shrink: 0;
     }
-    .chip.active { background: var(--red); border-color: transparent; color: #fff; }
+    .fchip.active {
+      border-color: var(--red); color: var(--red); background: var(--red-dim);
+    }
+    .filter-sep {
+      width: 1.5px; height: 18px; background: var(--border); margin: 0 3px; flex-shrink: 0;
+    }
 
-    /* ── Spinner ── */
-    .spinner { width: 26px; height: 26px; border: 3px solid rgba(255,31,31,0.2); border-top-color: var(--red); border-radius: 50%; }
+    /* ── Chart ───────────────────────────────────────────────── */
+    .chart-wrap {
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 4px;
+      padding: 14px 14px 10px; overflow: hidden;
+    }
+    .chart-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .chart-ttl { font-size: 9px; font-weight: 900; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
+    .chart-total { font-size: 24px; font-weight: 900; }
+    .chart-sub { font-size: 11px; color: var(--dim); margin-top: 1px; }
+    .chart-svg { display: block; width: 100%; overflow: visible; }
+
+    /* ── Training stats strip ────────────────────────────────── */
+    .stats-strip {
+      display: flex; gap: 0; background: var(--card); border: 1.5px solid var(--border);
+      border-radius: 4px; overflow: hidden;
+    }
+    .stat-cell {
+      flex: 1; padding: 10px 12px; border-right: 1.5px solid var(--border);
+      text-align: center;
+    }
+    .stat-cell:last-child { border-right: none; }
+    .stat-v { font-size: 16px; font-weight: 900; }
+    .stat-l { font-size: 9px; font-weight: 700; letter-spacing: 1px; color: var(--dim); text-transform: uppercase; margin-top: 2px; }
+
+    /* ── Activity card ───────────────────────────────────────── */
+    .act-item {
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 4px;
+      padding: 14px; cursor: pointer; transition: border-color .12s;
+    }
+    .act-item:active { border-color: var(--border-s); }
+    .act-hdr  { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .act-name { font-size: 14px; font-weight: 700; }
+    .act-type { font-size: 9px; font-weight: 900; letter-spacing: 1.2px; color: var(--dim); text-transform: uppercase; margin-top: 3px; }
+    .act-date { font-size: 10px; color: var(--dim); font-weight: 700; letter-spacing: 0.5px; }
+    .act-stats { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+    .st-val   { font-size: 15px; font-weight: 900; }
+    .st-lbl   { font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; margin-top: 1px; }
+    .zone-bar { display: flex; height: 3px; border-radius: 0; overflow: hidden; margin-top: 10px; gap: 1px; }
+    .zone-seg { height: 100%; }
+
+    /* ── Analyze button on act card ──────────────────────────── */
+    .analyze-btn {
+      padding: 4px 10px; height: 26px; background: transparent;
+      border: 1.5px solid var(--border); border-radius: 3px;
+      color: var(--dim); font-size: 9px; font-weight: 900; letter-spacing: 0.8px;
+      text-transform: uppercase; cursor: pointer; white-space: nowrap;
+      transition: border-color .1s, color .1s;
+    }
+    .analyze-btn:hover { border-color: var(--red); color: var(--red); }
+
+    /* ── Detail panel (overlays the list) ───────────────────── */
+    .detail-panel {
+      position: absolute; inset: 0; background: var(--bg);
+      overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+      scrollbar-width: none; display: none; flex-direction: column;
+      z-index: 10;
+    }
+    .detail-panel::-webkit-scrollbar { display: none; }
+    .detail-panel.open { display: flex; }
+
+    /* ── Activity detail layout ──────────────────────────────── */
+    .detail-act-name { font-size: 18px; font-weight: 900; }
+    .detail-act-type { font-size: 9px; font-weight: 900; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; margin-top: 3px; }
+    .detail-stats-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5px;
+      background: var(--border); border: 1.5px solid var(--border); border-radius: 4px;
+      overflow: hidden;
+    }
+    .detail-stat { background: var(--card); padding: 12px 14px; }
+    .detail-stat-v { font-size: 18px; font-weight: 900; }
+    .detail-stat-l { font-size: 9px; font-weight: 900; letter-spacing: 1px; color: var(--dim); text-transform: uppercase; margin-top: 2px; }
+
+    /* ── Spinner ─────────────────────────────────────────────── */
+    .spinner { width: 26px; height: 26px; border: 2.5px solid rgba(255,31,31,0.18); border-top-color: var(--red); border-radius: 50%; }
     .spinner.sm { width: 16px; height: 16px; border-width: 2px; }
     @media (prefers-reduced-motion: no-preference) {
       .spinner { animation: spin .7s linear infinite; }
     }
-    @media (prefers-reduced-motion: reduce) { .spinner { opacity: 0.6; } }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .loading-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
-    .loading-lbl  { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; text-align: center; }
+    .loading-card {
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 4px;
+      padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+    .loading-lbl { font-size: 10px; font-weight: 900; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; text-align: center; }
 
-    /* ── Empty state ── */
+    /* ── Empty state ─────────────────────────────────────────── */
     .empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 60px 40px; text-align: center; }
-    .empty-title { font-size: 28px; font-weight: 900; color: var(--faint); text-transform: uppercase; }
-    .empty-sub   { font-size: 14px; color: var(--dim); }
+    .empty-title { font-size: 24px; font-weight: 900; color: var(--faint); text-transform: uppercase; letter-spacing: 3px; }
+    .empty-sub   { font-size: 13px; color: var(--muted); }
 
-    /* ── Chat ── */
+    /* ── Chat ────────────────────────────────────────────────── */
     .chat-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 6px 0 4px; }
     .chat-scroll::-webkit-scrollbar { display: none; }
     .bwrap { padding: 3px 16px; }
     .bubble {
       display: inline-block; max-width: calc(100% - 60px);
-      padding: 10px 14px; font-size: 15px; line-height: 1.55; border-radius: 14px; word-break: break-word;
+      padding: 10px 14px; font-size: 15px; line-height: 1.55; border-radius: 4px; word-break: break-word;
     }
-    .bubble.user      { background: var(--red); color: #fff; border-radius: 14px 14px 4px 14px; margin-left: auto; display: block; }
-    .bubble.assistant { background: var(--card2); border: 1px solid var(--border); border-radius: 14px 14px 14px 4px; }
-    .bubble .mh  { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--dim); text-transform: uppercase; display: flex; align-items: center; gap: 6px; margin: 10px 0 3px; }
+    .bubble.user      { background: var(--red); color: #fff; border-radius: 4px 4px 2px 4px; margin-left: auto; display: block; }
+    .bubble.assistant { background: var(--card2); border: 1.5px solid var(--border); border-radius: 4px 4px 4px 2px; }
+    .bubble .mh  { font-size: 9px; font-weight: 900; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; display: flex; align-items: center; gap: 6px; margin: 10px 0 3px; }
     .bubble .mh::before { content: ''; width: 3px; height: 11px; background: var(--red); border-radius: 1px; flex-shrink: 0; }
     .bubble .mh:first-child { margin-top: 0; }
     .bubble .ml  { margin: 1px 0; }
@@ -181,11 +273,11 @@
     .bubble .mr  { height: 1px; background: var(--border); margin: 8px 0; }
     .bubble .msp { height: 5px; }
     .bubble strong { color: #fff; font-weight: 700; }
-    .bubble code   { background: rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 4px; font-family: 'SF Mono', monospace; font-size: 13px; }
+    .bubble code   { background: rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 3px; font-family: 'SF Mono', monospace; font-size: 13px; }
 
     /* Typing dots */
-    .typing { display: inline-flex; gap: 5px; padding: 12px 14px; background: var(--card2); border: 1px solid var(--border); border-radius: 14px 14px 14px 4px; }
-    .tdot   { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.5); }
+    .typing { display: inline-flex; gap: 5px; padding: 12px 14px; background: var(--card2); border: 1.5px solid var(--border); border-radius: 4px 4px 4px 2px; }
+    .tdot   { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.4); }
     @media (prefers-reduced-motion: no-preference) {
       .tdot { animation: tbounce 1.2s ease-in-out infinite; }
       .tdot:nth-child(2) { animation-delay: .15s; }
@@ -193,18 +285,19 @@
     }
     @keyframes tbounce { 0%,60%,100% { transform: translateY(4px); } 30% { transform: translateY(-4px); } }
 
-    /* ── Input bar ── */
+    /* ── Input bar ───────────────────────────────────────────── */
     .input-bar {
-      flex-shrink: 0; border-top: 1px solid var(--border); padding: 10px 12px;
+      flex-shrink: 0; border-top: 1.5px solid var(--border); padding: 10px 12px;
       padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
-      background: #000; display: flex; align-items: flex-end; gap: 8px;
+      background: var(--bg); display: flex; align-items: flex-end; gap: 8px;
     }
     .ifield {
-      flex: 1; background: var(--card2); border: 1px solid var(--border); border-radius: 8px;
+      flex: 1; background: var(--card2); border: 1.5px solid var(--border); border-radius: 4px;
       padding: 10px 14px; color: var(--text); font-size: 15px; font-family: inherit;
       resize: none; outline: none; max-height: 120px; overflow-y: auto; line-height: 1.4;
     }
-    .ifield::placeholder { color: var(--dim); }
+    .ifield::placeholder { color: var(--muted); }
+    .ifield:focus { border-color: rgba(255,255,255,0.22); }
     .send-btn {
       background: none; border: none; cursor: pointer; color: var(--red); padding: 0;
       display: flex; flex-shrink: 0; min-width: 44px; min-height: 44px; align-items: center; justify-content: center;
@@ -212,87 +305,91 @@
     .send-btn:disabled { color: var(--faint); pointer-events: none; }
     .send-btn svg { width: 36px; height: 36px; fill: currentColor; }
 
-    /* ── Upload bar ── */
+    /* ── Action button ───────────────────────────────────────── */
+    .abtn {
+      padding: 12px 20px; min-height: 44px; background: var(--red); border: none; border-radius: 3px;
+      color: #fff; font-size: 11px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+      transition: transform .1s, box-shadow .1s;
+    }
+    .abtn:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 rgba(0,0,0,0.4); }
+    .abtn:disabled { opacity: 0.45; pointer-events: none; }
+    .abtn.full  { width: 100%; }
+    .abtn.ghost { background: transparent; border: 1.5px solid var(--border); color: var(--dim); box-shadow: none; }
+
+    /* ── Plan card ───────────────────────────────────────────── */
+    .plan-row { background: var(--card); border: 1.5px solid var(--border); border-radius: 4px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+
+    /* ── Upload bar ──────────────────────────────────────────── */
     .upload-btn {
       width: 100%; padding: 13px; background: var(--red); border: none;
-      color: #fff; font-size: 12px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;
+      color: #fff; font-size: 11px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase;
       cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
     }
     .upload-btn:disabled { opacity: 0.5; }
-    .upload-done { padding: 10px 16px; background: rgba(52,199,89,0.07); border-top: 1px solid rgba(52,199,89,0.2); border-bottom: 1px solid rgba(52,199,89,0.2); }
-    .upload-done-ttl { font-size: 10px; font-weight: 900; letter-spacing: 1.5px; color: var(--green); text-transform: uppercase; margin-bottom: 4px; }
+    .upload-done { padding: 10px 16px; background: rgba(52,199,89,0.06); border-top: 1.5px solid rgba(52,199,89,0.2); border-bottom: 1.5px solid rgba(52,199,89,0.2); }
+    .upload-done-ttl { font-size: 9px; font-weight: 900; letter-spacing: 2px; color: var(--green); text-transform: uppercase; margin-bottom: 4px; }
     .upload-done-row { display: flex; justify-content: space-between; font-size: 12px; color: rgba(255,255,255,0.7); margin: 2px 0; }
 
-    /* ── Conversation history ── */
-    .conv-item {
-      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-      padding: 12px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 3px;
-    }
-    .conv-item:active { background: var(--card2); }
-    .conv-badge {
-      font-size: 9px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;
-      padding: 2px 7px; border-radius: 3px; background: var(--faint); color: var(--dim); white-space: nowrap;
-    }
-
-    /* ── Activities ── */
-    .act-item { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
-    .act-hdr  { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-    .act-name { font-size: 14px; font-weight: 700; }
-    .act-type { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--dim); text-transform: uppercase; margin-top: 2px; }
-    .act-date { font-size: 11px; color: var(--dim); }
-    .act-stats { display: flex; gap: 16px; flex-wrap: wrap; }
-    .st-val   { font-size: 14px; font-weight: 900; }
-    .st-lbl   { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
-    .zone-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; margin-top: 10px; gap: 1px; }
-    .zone-seg { height: 100%; }
-
-    /* ── Suggestions ── */
+    /* ── Suggestions ─────────────────────────────────────────── */
     .sug-btn {
-      width: 100%; min-height: 48px; padding: 12px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      width: 100%; min-height: 48px; padding: 12px 14px; background: var(--card);
+      border: 1.5px solid var(--border); border-radius: 4px;
       text-align: left; display: flex; align-items: center; justify-content: space-between;
-      cursor: pointer; color: rgba(255,255,255,0.8); font-size: 14px; font-family: inherit; gap: 12px;
+      cursor: pointer; color: rgba(255,255,255,0.75); font-size: 14px; font-family: inherit; gap: 12px;
+      transition: border-color .12s;
     }
+    .sug-btn:active { border-color: var(--border-s); }
     .sug-arrow { color: var(--red); flex-shrink: 0; font-size: 14px; }
 
-    /* ── Analyze date inputs ── */
-    .date-row   { display: flex; gap: 8px; padding: 0 16px 10px; }
-    .date-input {
-      flex: 1; background: var(--card2); border: 1px solid var(--border); border-radius: 6px;
-      padding: 10px 12px; color: var(--text); font-size: 13px; font-family: inherit; outline: none;
-      min-height: 44px;
+    /* ── Conv history items ──────────────────────────────────── */
+    .conv-item {
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 4px;
+      padding: 12px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 3px;
+      transition: border-color .12s;
     }
-    .date-input::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.5; }
-
-    /* ── Action button ── */
-    .abtn {
-      padding: 12px 20px; min-height: 44px; background: var(--red); border: none; border-radius: 6px;
-      color: #fff; font-size: 12px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;
-      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+    .conv-item:active { border-color: var(--border-s); }
+    .conv-badge {
+      font-size: 8px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;
+      padding: 2px 6px; border-radius: 2px; background: var(--faint); color: var(--dim); white-space: nowrap;
+      border: 1px solid var(--border);
     }
-    .abtn:disabled { opacity: 0.5; pointer-events: none; }
-    .abtn.full  { width: 100%; }
-    .abtn.ghost { background: transparent; border: 1px solid var(--border); color: var(--dim); }
 
-    /* ── Plan card ── */
-    .plan-row { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+    /* ── Chip row (Coach tab) ────────────────────────────────── */
+    .chip-row {
+      flex-shrink: 0; display: flex; gap: 6px; overflow-x: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding: 8px 16px; background: var(--bg); border-bottom: 1.5px solid var(--border);
+    }
+    .chip-row::-webkit-scrollbar { display: none; }
+    .chip {
+      padding: 0 14px; min-height: 34px; border-radius: 3px; flex-shrink: 0;
+      font-size: 10px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase;
+      border: 1.5px solid var(--border); background: transparent; color: var(--dim);
+      cursor: pointer; white-space: nowrap; display: flex; align-items: center;
+      transition: background .12s, color .12s, border-color .12s;
+    }
+    .chip.active { background: var(--red); border-color: transparent; color: #fff; }
 
-    /* ── Toast ── */
+    /* ── Toast ───────────────────────────────────────────────── */
     #toast {
       position: fixed; bottom: calc(68px + env(safe-area-inset-bottom, 0px)); left: 50%;
-      transform: translateX(-50%) translateY(12px); background: var(--card2); border: 1px solid var(--border);
-      border-radius: 100px; padding: 9px 18px; font-size: 13px; font-weight: 600;
-      opacity: 0; pointer-events: none; white-space: nowrap; z-index: 100;
+      transform: translateX(-50%) translateY(12px); background: var(--card2);
+      border: 1.5px solid var(--border-s);
+      border-radius: 100px; padding: 9px 18px; font-size: 13px; font-weight: 700;
+      opacity: 0; pointer-events: none; white-space: nowrap; z-index: 200;
     }
     @media (prefers-reduced-motion: no-preference) {
       #toast { transition: opacity .2s, transform .2s; }
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    /* ══════════════════════════════════════════════════════
-       LOGIN SCREEN
-       ══════════════════════════════════════════════════════ */
+    /* ══════════════════════════════════════════════════════════
+       LOGIN
+       ══════════════════════════════════════════════════════════ */
     #login-screen {
-      position: fixed; inset: 0; z-index: 200; background: #000;
+      position: fixed; inset: 0; z-index: 200; background: var(--bg);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       padding: 32px 28px;
       padding-top: max(32px, env(safe-area-inset-top, 32px));
@@ -303,16 +400,16 @@
       #login-screen.fade-out { animation: fadeOut .3s ease-in forwards; }
       @keyframes fadeOut { to { opacity: 0; transform: scale(0.97); } }
     }
-    .login-logo  { font-size: 11px; font-weight: 900; letter-spacing: 3px; color: var(--red); text-transform: uppercase; margin-bottom: 6px; }
-    .login-title { font-size: 32px; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 4px; }
-    .login-sub   { font-size: 14px; color: var(--dim); margin-bottom: 40px; text-align: center; }
+    .login-logo  { font-size: 10px; font-weight: 900; letter-spacing: 4px; color: var(--red); text-transform: uppercase; margin-bottom: 8px; }
+    .login-title { font-size: 30px; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 4px; }
+    .login-sub   { font-size: 13px; color: var(--dim); margin-bottom: 40px; text-align: center; }
     .login-form  { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 16px; }
     .login-field { display: flex; flex-direction: column; gap: 6px; }
-    .login-label { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; }
+    .login-label { font-size: 9px; font-weight: 900; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
     .login-input {
-      background: var(--card2); border: 1px solid var(--border); border-radius: 8px;
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 4px;
       padding: 14px 16px; color: var(--text); font-size: 15px; font-family: inherit; outline: none;
-      min-height: 52px; width: 100%;
+      min-height: 52px; width: 100%; transition: border-color .12s;
     }
     .login-input:focus { border-color: var(--red); }
     .login-pw-wrap { position: relative; }
@@ -324,31 +421,31 @@
     }
     .pw-toggle svg { width: 18px; height: 18px; fill: currentColor; }
     .login-connect {
-      width: 100%; min-height: 52px; background: var(--red); border: none; border-radius: 8px;
-      color: #fff; font-size: 13px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase;
+      width: 100%; min-height: 52px; background: var(--red); border: none; border-radius: 4px;
+      color: #fff; font-size: 12px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase;
       cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
-      margin-top: 4px;
+      margin-top: 4px; box-shadow: 3px 3px 0 rgba(0,0,0,0.5);
     }
     .login-connect:disabled { opacity: 0.5; pointer-events: none; }
     .login-error { font-size: 13px; color: #ff6b6b; text-align: center; min-height: 18px; line-height: 1.4; }
     .login-hint  { font-size: 12px; color: var(--muted); text-align: center; margin-top: 8px; line-height: 1.5; }
 
-    /* ── Settings modal (in-app) ── */
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 50; display: none; align-items: flex-end; }
+    /* ── Settings modal ──────────────────────────────────────── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 50; display: none; align-items: flex-end; }
     .modal-overlay.open { display: flex; }
     .modal-sheet {
-      width: 100%; background: #1a1a1a; border-top: 1px solid var(--border);
-      border-radius: 18px 18px 0 0;
+      width: 100%; background: #161616; border-top: 1.5px solid var(--border);
+      border-radius: 12px 12px 0 0;
       padding: 16px 20px max(20px, env(safe-area-inset-bottom, 20px));
       display: flex; flex-direction: column; gap: 16px;
     }
-    .modal-handle { width: 36px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; margin: 0 auto 6px; }
-    .modal-ttl    { font-size: 14px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
-    .field-lbl    { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--dim); text-transform: uppercase; margin-bottom: 6px; }
+    .modal-handle { width: 36px; height: 3px; background: rgba(255,255,255,0.18); border-radius: 2px; margin: 0 auto 6px; }
+    .modal-ttl    { font-size: 12px; font-weight: 900; letter-spacing: 2.5px; text-transform: uppercase; }
+    .field-lbl    { font-size: 9px; font-weight: 900; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; margin-bottom: 6px; }
     .text-input   {
-      width: 100%; background: var(--card2); border: 1px solid var(--border); border-radius: 8px;
+      width: 100%; background: var(--card2); border: 1.5px solid var(--border); border-radius: 4px;
       padding: 12px 14px; color: var(--text); font-size: 15px; font-family: inherit; outline: none;
-      min-height: 48px;
+      min-height: 48px; transition: border-color .12s;
     }
     .text-input:focus { border-color: var(--red); }
     .conn-row  { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -360,7 +457,7 @@
 </head>
 <body>
 
-<!-- ── Login screen ────────────────────────────────────── -->
+<!-- ── Login ───────────────────────────────────────────────── -->
 <div id="login-screen">
   <div class="login-logo">Garmin Coach</div>
   <div class="login-title">GarminCoach</div>
@@ -376,7 +473,7 @@
       <div class="login-pw-wrap">
         <input class="login-input" id="l-token" type="password" placeholder="Your secret token"
           autocorrect="off" autocapitalize="none" spellcheck="false">
-        <button class="pw-toggle" type="button" onclick="togglePw('l-token',this)" aria-label="Show or hide token">
+        <button class="pw-toggle" type="button" onclick="togglePw('l-token')" aria-label="Show or hide token">
           <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg>
         </button>
       </div>
@@ -387,65 +484,59 @@
   </div>
 </div>
 
-<!-- ── Main app ────────────────────────────────────────── -->
+<!-- ── App shell ────────────────────────────────────────────── -->
 <div id="app">
 
   <header class="header" id="app-header">
-    <div id="header-title" style="font-size:14px;font-weight:900;letter-spacing:2px">TODAY</div>
+    <div class="header-left" id="header-left">
+      <div class="header-title" id="header-title">TODAY</div>
+    </div>
     <div class="header-actions" id="header-actions"></div>
   </header>
 
   <div class="tab-content">
 
-    <!-- TODAY ────────────────────────────────────────── -->
+    <!-- TODAY ───────────────────────────────────────────────── -->
     <div class="tab-panel active" id="tab-today">
       <div class="pad gap" id="today-body">
         <div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Fetching Garmin Data</div></div>
       </div>
     </div>
 
-    <!-- TRAINING + ANALYZE ──────────────────────────── -->
+    <!-- TRAINING ─────────────────────────────────────────────── -->
     <div class="tab-panel" id="tab-training">
-      <div class="chip-row" id="training-filter-row">
-        <button class="chip active" data-f="all"      onclick="setActFilter('all')">All</button>
-        <button class="chip"        data-f="running"  onclick="setActFilter('running')">Running</button>
-        <button class="chip"        data-f="strength" onclick="setActFilter('strength')">Strength</button>
+
+      <!-- Filters: date range + type -->
+      <div class="filter-bar">
+        <div class="filter-row" id="range-row">
+          <button class="fchip" data-r="W"  onclick="setRange('W')">W</button>
+          <button class="fchip active" data-r="M"  onclick="setRange('M')">M</button>
+          <button class="fchip" data-r="3M" onclick="setRange('3M')">3M</button>
+          <button class="fchip" data-r="6M" onclick="setRange('6M')">6M</button>
+          <button class="fchip" data-r="1Y" onclick="setRange('1Y')">1Y</button>
+          <div class="filter-sep"></div>
+          <button class="fchip active" data-t="all"      onclick="setActType('all')">All</button>
+          <button class="fchip"        data-t="running"  onclick="setActType('running')">Run</button>
+          <button class="fchip"        data-t="strength" onclick="setActType('strength')">Strength</button>
+        </div>
       </div>
-      <div class="pad gap" id="training-body">
-        <div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Loading Activities</div></div>
+
+      <!-- List view -->
+      <div id="train-list" style="display:flex;flex-direction:column;flex:1">
+        <div class="pad gap" id="chart-area"></div>
+        <div class="pad gap" id="training-body">
+          <div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Loading Activities</div></div>
+        </div>
       </div>
-      <!-- ── Analysis section ─────────────────────── -->
-      <div class="sec-div" style="padding:6px 16px 2px" id="analyze-section">
-        <div class="sec-bar" aria-hidden="true"></div>
-        <div class="sec-lbl">Analysis</div>
+
+      <!-- Activity detail overlay -->
+      <div class="detail-panel" id="train-detail">
+        <!-- populated by openDetail() -->
       </div>
-      <div class="chip-row" id="analyze-chip-row">
-        <button class="chip" data-p="today"     onclick="setAP('today')">Today</button>
-        <button class="chip" data-p="week"      onclick="setAP('week')">This Week</button>
-        <button class="chip" data-p="last-week" onclick="setAP('last-week')">Last Week</button>
-        <button class="chip" data-p="month"     onclick="setAP('month')">Month</button>
-        <button class="chip" data-p="custom"    onclick="setAP('custom')">Custom</button>
-        <button class="chip" data-p="history"   onclick="setAP('history')">History</button>
-      </div>
-      <div id="analyze-custom-row" style="display:none" class="date-row">
-        <input type="date" class="date-input" id="a-start" aria-label="Start date">
-        <input type="date" class="date-input" id="a-end" aria-label="End date">
-      </div>
-      <div style="padding:0 16px 12px">
-        <button class="abtn full" id="analyze-run-btn" onclick="runAnalyze()">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 12h2v2H2zm3-4h2v6H5zm3-3h2v9H8zm3-4h2v13h-2z"/></svg>
-          Analyze
-        </button>
-      </div>
-      <div class="pad gap" id="analyze-msgs"></div>
-      <div id="analyze-followup" style="display:none;padding:0 16px 24px;flex-direction:column;gap:8px">
-        <textarea class="ifield" id="analyze-input" placeholder="Ask a follow-up…" rows="1"
-          oninput="autoH(this)" onkeydown="akd(event)" aria-label="Follow-up question"></textarea>
-        <button class="abtn full" onclick="analyzeSend()" aria-label="Send">Send</button>
-      </div>
+
     </div>
 
-    <!-- COACH ───────────────────────────────────────── -->
+    <!-- COACH ─────────────────────────────────────────────────── -->
     <div class="tab-panel" id="tab-coach">
       <div class="chip-row" id="coach-chip-row">
         <button class="chip active" data-ct="chat"       onclick="setCoachType('chat')">Chat</button>
@@ -467,7 +558,6 @@
       </div>
     </div>
 
-
   </div><!-- tab-content -->
 
   <nav class="tabbar" aria-label="Main navigation">
@@ -486,7 +576,7 @@
   </nav>
 </div>
 
-<!-- Settings modal (in-app) -->
+<!-- Settings modal -->
 <div class="modal-overlay" id="settings-modal" onclick="outsideClose(event)">
   <div class="modal-sheet" role="dialog" aria-modal="true" aria-label="Settings">
     <div class="modal-handle" aria-hidden="true"></div>
@@ -501,7 +591,7 @@
     </div>
     <div class="conn-row">
       <div class="conn-info"><div class="cdot" id="cdot"></div><span id="clabel">Not tested</span></div>
-      <button class="abtn" onclick="testConn()" style="padding:9px 16px;font-size:11px">Test</button>
+      <button class="abtn" onclick="testConn()" style="padding:9px 16px;font-size:10px">Test</button>
     </div>
     <button class="abtn full" onclick="saveSettings()">Save</button>
     <button class="abtn full ghost" onclick="doLogout()">Sign Out</button>
@@ -513,7 +603,7 @@
 <script>
 'use strict';
 
-// ── Config ──────────────────────────────────────────────
+// ── Config ─────────────────────────────────────────────────
 const C = {
   get url()   { return (localStorage.getItem('gc_url')   || '').replace(/\/+$/,'') },
   get token() { return  localStorage.getItem('gc_token') || '' },
@@ -523,65 +613,56 @@ const C = {
   clear()     { localStorage.removeItem('gc_url'); localStorage.removeItem('gc_token') },
 }
 
-// ── Login ────────────────────────────────────────────────
+// ── Login ───────────────────────────────────────────────────
 function togglePw(id) {
   const el = document.getElementById(id)
   el.type = el.type === 'password' ? 'text' : 'password'
 }
-
 async function doLogin() {
-  const urlEl = document.getElementById('l-url')
-  const tokEl = document.getElementById('l-token')
-  const errEl = document.getElementById('l-error')
-  const btn   = document.getElementById('l-btn')
-  const url   = urlEl.value.trim().replace(/\/+$/, '')
-  const token = tokEl.value.trim()
-  errEl.textContent = ''
-  if (!url)   { errEl.textContent = 'Enter your server URL.';   urlEl.focus(); return }
-  if (!token) { errEl.textContent = 'Enter your access token.'; tokEl.focus(); return }
-  btn.disabled = true
-  btn.innerHTML = '<div class="spinner sm"></div> Connecting…'
+  const urlEl=document.getElementById('l-url'), tokEl=document.getElementById('l-token')
+  const errEl=document.getElementById('l-error'), btn=document.getElementById('l-btn')
+  const url=urlEl.value.trim().replace(/\/+$/,''), token=tokEl.value.trim()
+  errEl.textContent=''
+  if (!url)   { errEl.textContent='Enter your server URL.';   urlEl.focus(); return }
+  if (!token) { errEl.textContent='Enter your access token.'; tokEl.focus(); return }
+  btn.disabled=true; btn.innerHTML='<div class="spinner sm"></div> Connecting…'
   try {
-    const r = await fetch(url + '/health', { headers: { 'Authorization': `Bearer ${token}` } })
-    if (r.status === 401) { errEl.textContent = 'Wrong token — check your access token.'; return }
-    if (r.status === 429) { errEl.textContent = 'Too many attempts — wait 60 seconds.'; return }
-    if (!r.ok) { errEl.textContent = `Server error ${r.status}. Check the URL.`; return }
-    C.url = url; C.token = token
-    const ls = document.getElementById('login-screen')
+    const r=await fetch(url+'/health',{headers:{'Authorization':`Bearer ${token}`}})
+    if (r.status===401) { errEl.textContent='Wrong token.'; return }
+    if (r.status===429) { errEl.textContent='Too many attempts — wait 60s.'; return }
+    if (!r.ok) { errEl.textContent=`Server error ${r.status}.`; return }
+    C.url=url; C.token=token
+    const ls=document.getElementById('login-screen')
     ls.classList.add('fade-out')
-    const enter = () => { ls.classList.add('hidden'); loadToday() }
-    ls.addEventListener('animationend', enter, { once: true })
-    setTimeout(enter, 400) // fallback for reduced-motion
-  } catch(e) {
-    errEl.textContent = 'Could not reach server. Check the URL and Tailscale.'
-  } finally {
-    btn.disabled = false; btn.innerHTML = 'Connect'
-  }
+    const enter=()=>{ ls.classList.add('hidden'); loadToday() }
+    ls.addEventListener('animationend',enter,{once:true})
+    setTimeout(enter,400)
+  } catch(e) { errEl.textContent='Could not reach server. Check URL and Tailscale.' }
+  finally { btn.disabled=false; btn.innerHTML='Connect' }
 }
-
 function doLogout() {
   C.clear(); closeSettings()
-  const ls = document.getElementById('login-screen')
-  ls.classList.remove('hidden', 'fade-out')
-  document.getElementById('l-url').value = ''
-  document.getElementById('l-token').value = ''
-  document.getElementById('l-error').textContent = ''
-  today_loaded = false; training_loaded = false
+  const ls=document.getElementById('login-screen')
+  ls.classList.remove('hidden','fade-out')
+  document.getElementById('l-url').value=''
+  document.getElementById('l-token').value=''
+  document.getElementById('l-error').textContent=''
+  today_loaded=false; training_loaded=false
 }
 
-// ── API ─────────────────────────────────────────────────
+// ── API ─────────────────────────────────────────────────────
 async function api(method, path, body) {
-  const r = await fetch(C.url + path, {
+  const r=await fetch(C.url+path,{
     method,
-    headers: { 'Authorization': `Bearer ${C.token}`, 'Content-Type': 'application/json' },
-    body: body != null ? JSON.stringify(body) : undefined,
+    headers:{'Authorization':`Bearer ${C.token}`,'Content-Type':'application/json'},
+    body:body!=null?JSON.stringify(body):undefined,
   })
-  if (r.status === 401) { doLogout(); throw new Error('Session expired — please sign in again') }
-  if (!r.ok) { const t = await r.text().catch(()=>''); throw new Error(t || `HTTP ${r.status}`) }
+  if (r.status===401) { doLogout(); throw new Error('Session expired — please sign in again') }
+  if (!r.ok) { const t=await r.text().catch(()=>''); throw new Error(t||`HTTP ${r.status}`) }
   return r.json()
 }
 
-// ── Markdown ────────────────────────────────────────────
+// ── Markdown ────────────────────────────────────────────────
 function x(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
 function il(s) {
   return x(s)
@@ -591,154 +672,180 @@ function il(s) {
 }
 function md(text) {
   if (!text) return ''
-  let h = ''
+  let h=''
   for (const ln of text.split('\n')) {
     if (/^[—]\s+.+\s+[—]$/.test(ln.trim())) {
-      h += `<div class="mh">${x(ln.trim().replace(/^[—]\s*/,'').replace(/\s*[—]$/,''))}</div>`
+      h+=`<div class="mh">${x(ln.trim().replace(/^[—]\s*/,'').replace(/\s*[—]$/,''))}</div>`
     } else if (/^[-•]\s/.test(ln)) {
-      h += `<div class="mb">${il(ln.slice(2))}</div>`
+      h+=`<div class="mb">${il(ln.slice(2))}</div>`
     } else if (/^\d+\.\s/.test(ln)) {
-      h += `<div class="mb">${il(ln.replace(/^\d+\.\s/,''))}</div>`
+      h+=`<div class="mb">${il(ln.replace(/^\d+\.\s/,''))}</div>`
     } else if (/^[-─═]{3,}$/.test(ln.trim())) {
-      h += `<div class="mr"></div>`
+      h+=`<div class="mr"></div>`
     } else if (!ln.trim()) {
-      h += `<div class="msp"></div>`
+      h+=`<div class="msp"></div>`
     } else {
-      h += `<div class="ml">${il(ln)}</div>`
+      h+=`<div class="ml">${il(ln)}</div>`
     }
   }
   return h
 }
 
-// ── Helpers ─────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────
 function autoH(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,120)+'px' }
 let _tt
 function toast(msg) {
   const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show')
   clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'),2500)
 }
-function fmt_date(s) { if(!s) return ''; return new Date(s).toLocaleDateString('en-US',{month:'short',day:'numeric'}) }
-function rdy_color(sc) { if(!sc) return 'var(--dim)'; if(sc>=80) return 'var(--green)'; if(sc>=60) return 'var(--red)'; return 'var(--orange)' }
+function fmt_date(s) {
+  if(!s) return ''
+  return new Date(s).toLocaleDateString('en-US',{month:'short',day:'numeric'})
+}
+function rdy_color(sc) {
+  if(!sc) return 'var(--dim)'
+  if(sc>=80) return 'var(--green)'
+  if(sc>=60) return 'var(--red)'
+  return 'var(--orange)'
+}
+function isRun(type) {
+  return (type||'').toLowerCase().match(/run/)
+}
+function isStrength(type) {
+  const t=(type||'').toLowerCase()
+  return t.includes('strength')||t.includes('fitness')
+}
 
-// ── Tab switch ──────────────────────────────────────────
-let active_tab = 'today'
-const TABS = ['today','training','coach']
+// ── Date range helpers ──────────────────────────────────────
+function rangeToSince(r) {
+  const d=new Date()
+  switch(r) {
+    case 'W':  { const mon=new Date(d); mon.setDate(d.getDate()-d.getDay()+1); return mon.toISOString().slice(0,10) }
+    case 'M':  return new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10)
+    case '3M': { const t=new Date(d); t.setDate(t.getDate()-90); return t.toISOString().slice(0,10) }
+    case '6M': { const t=new Date(d); t.setDate(t.getDate()-180); return t.toISOString().slice(0,10) }
+    case '1Y': { const t=new Date(d); t.setDate(t.getDate()-365); return t.toISOString().slice(0,10) }
+  }
+  return new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10)
+}
+
+// ── Tab switch ──────────────────────────────────────────────
+let active_tab='today'
+const TABS=['today','training','coach']
 
 function switchTab(name) {
-  TABS.forEach(t => {
-    document.getElementById('tab-'+t).classList.toggle('active', t===name)
-    document.getElementById('tabbar-'+t).classList.toggle('active', t===name)
+  // Close any open detail view first
+  if (name==='training' && trainDetailOpen) closeDetail()
+  TABS.forEach(t=>{
+    document.getElementById('tab-'+t).classList.toggle('active',t===name)
+    document.getElementById('tabbar-'+t).classList.toggle('active',t===name)
   })
-  active_tab = name
+  active_tab=name
   renderHeader(name)
   if (name==='today'    && !today_loaded)    loadToday()
   if (name==='training' && !training_loaded) loadTraining()
 }
 
-// ── Header ──────────────────────────────────────────────
-const GEAR_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96a7.07 7.07 0 00-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.47.47 0 00-.59.22L2.74 8.87a.47.47 0 00.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 00-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 110-7.2 3.6 3.6 0 010 7.2z"/></svg>`
-const SYNC_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>`
+// ── Header ──────────────────────────────────────────────────
+const GEAR_SVG=`<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96a7.07 7.07 0 00-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.47.47 0 00-.59.22L2.74 8.87a.47.47 0 00.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 00-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 110-7.2 3.6 3.6 0 010 7.2z"/></svg>`
+const SYNC_SVG=`<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>`
+const BACK_SVG=`<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>`
 
 function renderHeader(tab) {
-  const titles = { today:'TODAY', training:'TRAINING', coach:'COACH' }
-  document.getElementById('header-title').textContent = titles[tab]
-  const acts = document.getElementById('header-actions')
+  const titles={today:'TODAY',training:'TRAINING',coach:'COACH'}
+  document.getElementById('header-title').textContent=titles[tab]||tab.toUpperCase()
+  const left=document.getElementById('header-left')
+  left.innerHTML=`<div class="header-title" id="header-title">${titles[tab]||tab.toUpperCase()}</div>`
+  const acts=document.getElementById('header-actions')
   if (tab==='today') {
-    acts.innerHTML = `
+    acts.innerHTML=`
       <button class="icon-btn" onclick="openSettings()" aria-label="Settings">${GEAR_SVG}</button>
-      <button class="icon-btn red" onclick="syncAndLoad()" aria-label="Sync from Garmin">${SYNC_SVG}</button>`
+      <button class="icon-btn red" onclick="syncAndLoad()" aria-label="Sync">${SYNC_SVG}</button>`
   } else {
-    acts.innerHTML = `<button class="icon-btn" onclick="openSettings()" aria-label="Settings">${GEAR_SVG}</button>`
+    acts.innerHTML=`<button class="icon-btn" onclick="openSettings()" aria-label="Settings">${GEAR_SVG}</button>`
   }
 }
 
-// ── Settings (in-app) ────────────────────────────────────
+function renderDetailHeader(actName) {
+  document.getElementById('header-left').innerHTML=`
+    <button class="back-btn" onclick="closeDetail()" aria-label="Back to list">
+      ${BACK_SVG} Back
+    </button>`
+  document.getElementById('header-actions').innerHTML=`<button class="icon-btn" onclick="openSettings()" aria-label="Settings">${GEAR_SVG}</button>`
+}
+
+// ── Settings ────────────────────────────────────────────────
 function openSettings() {
-  document.getElementById('s-url').value   = C.url
-  document.getElementById('s-token').value = C.token
-  document.getElementById('cdot').className   = 'cdot'
-  document.getElementById('clabel').textContent = 'Not tested'
+  document.getElementById('s-url').value=C.url
+  document.getElementById('s-token').value=C.token
+  document.getElementById('cdot').className='cdot'
+  document.getElementById('clabel').textContent='Not tested'
   document.getElementById('settings-modal').classList.add('open')
 }
 function closeSettings() { document.getElementById('settings-modal').classList.remove('open') }
 function outsideClose(e) { if(e.target===document.getElementById('settings-modal')) closeSettings() }
-
 async function testConn() {
-  const url   = document.getElementById('s-url').value.replace(/\/+$/,'')
-  const token = document.getElementById('s-token').value
-  const dot   = document.getElementById('cdot')
-  const lbl   = document.getElementById('clabel')
-  dot.className = 'cdot'; lbl.textContent = 'Testing…'
+  const url=document.getElementById('s-url').value.replace(/\/+$/,'')
+  const token=document.getElementById('s-token').value
+  const dot=document.getElementById('cdot'), lbl=document.getElementById('clabel')
+  dot.className='cdot'; lbl.textContent='Testing…'
   try {
-    const r = await fetch(url+'/health', { headers:{'Authorization':`Bearer ${token}`} })
-    if (r.ok) { dot.className='cdot ok'; lbl.textContent='Connected ✓' }
-    else       { dot.className='cdot err'; lbl.textContent=`HTTP ${r.status}` }
+    const r=await fetch(url+'/health',{headers:{'Authorization':`Bearer ${token}`}})
+    if(r.ok){dot.className='cdot ok';lbl.textContent='Connected ✓'}
+    else{dot.className='cdot err';lbl.textContent=`HTTP ${r.status}`}
   } catch(e) { dot.className='cdot err'; lbl.textContent=e.message }
 }
-
 function saveSettings() {
-  C.url   = document.getElementById('s-url').value
-  C.token = document.getElementById('s-token').value
+  C.url=document.getElementById('s-url').value
+  C.token=document.getElementById('s-token').value
   closeSettings(); toast('Settings saved')
   today_loaded=false; training_loaded=false
   if (active_tab==='today')    loadToday()
   if (active_tab==='training') loadTraining()
 }
 
-// ── TODAY ────────────────────────────────────────────────
-let today_loaded = false
+// ── TODAY ────────────────────────────────────────────────────
+let today_loaded=false
 
 function localDateStr() {
-  const d = new Date()
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+  const d=new Date()
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
 }
 
 async function loadToday() {
-  today_loaded = true
-  const b = document.getElementById('today-body')
-  b.innerHTML = `<div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Fetching Garmin Data</div></div>`
+  today_loaded=true
+  const b=document.getElementById('today-body')
+  b.innerHTML=`<div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Fetching Garmin Data</div></div>`
   try {
-    const s = await api('GET', '/status?local_date=' + localDateStr())
+    const s=await api('GET','/status?local_date='+localDateStr())
     renderToday(s)
-  } catch(e) {
-    document.getElementById('today-body').innerHTML = errBanner(e.message)
-  }
+  } catch(e) { document.getElementById('today-body').innerHTML=errBanner(e.message) }
 }
 
 async function syncAndLoad() {
-  const btn = document.querySelector('[onclick="syncAndLoad()"]')
-  if (btn) { btn.style.pointerEvents='none'; btn.style.opacity='0.4' }
-  try {
-    await api('POST','/sync')
-    toast('Synced ✓')
-  } catch(e) {
-    toast('Sync failed: ' + e.message)
-    if (btn) { btn.style.pointerEvents=''; btn.style.opacity='' }
-    return
-  }
-  if (btn) { btn.style.pointerEvents=''; btn.style.opacity='' }
-  today_loaded = false; loadToday()
+  const btn=document.querySelector('[onclick="syncAndLoad()"]')
+  if(btn){btn.style.pointerEvents='none';btn.style.opacity='0.4'}
+  try { await api('POST','/sync'); toast('Synced ✓') }
+  catch(e) { toast('Sync failed: '+e.message); if(btn){btn.style.pointerEvents='';btn.style.opacity=''}; return }
+  if(btn){btn.style.pointerEvents='';btn.style.opacity=''}
+  today_loaded=false; loadToday()
 }
 
 function renderToday(s) {
-  let h = ''
+  let h=''
   if (s._stale_fields?.length) {
-    const fl = s._stale_fields.map(f=>f.replace(/_/g,' ')).join(' & ')
-    h += `<div class="banner stale">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--orange)" aria-hidden="true"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
-      <div><div style="font-size:10px;font-weight:900;letter-spacing:1px;color:var(--orange);text-transform:uppercase">Cached Data</div>
-      <div style="font-size:13px;color:var(--dim)">Showing yesterday’s ${x(fl)} — auto-syncing. Tap ↺ to refresh now.</div></div>
+    const fl=s._stale_fields.map(f=>f.replace(/_/g,' ')).join(' & ')
+    h+=`<div class="banner stale">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--orange)"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
+      <div><div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:var(--orange);text-transform:uppercase">Cached Data</div>
+      <div style="font-size:13px;color:var(--dim)">Showing yesterday's ${x(fl)} — tap ↺ to refresh.</div></div>
     </div>`
   }
-
-  const sc  = s.readiness?.score ?? null
-  const lv  = s.readiness?.level ?? null
-  const fb  = s.readiness?.feedback ?? null
-  const col = rdy_color(sc)
-  const r36 = 36, circ = 2*Math.PI*r36
-  const off = sc ? circ*(1 - sc/100) : circ
-  h += `<div class="readiness-card">
-    <svg class="ring-svg" viewBox="0 0 84 84" role="img" aria-label="Readiness score ${sc??'unknown'}">
+  const sc=s.readiness?.score??null, lv=s.readiness?.level??null, fb=s.readiness?.feedback??null
+  const col=rdy_color(sc)
+  const r36=36, circ=2*Math.PI*r36, off=sc?circ*(1-sc/100):circ
+  h+=`<div class="readiness-card">
+    <svg class="ring-svg" viewBox="0 0 84 84" role="img" aria-label="Readiness ${sc??'unknown'}">
       <circle class="ring-track" cx="42" cy="42" r="${r36}"/>
       <circle class="ring-fill" cx="42" cy="42" r="${r36}" stroke="${col}"
         stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
@@ -747,54 +854,51 @@ function renderToday(s) {
     </svg>
     <div style="flex:1;min-width:0">
       <div class="metric-label">Readiness</div>
-      <div class="readiness-level" style="color:${col}">${lv ? lv.replace(/_/g,' ') : '—'}</div>
-      ${fb ? `<div class="readiness-feedback">${x(fb)}</div>` : ''}
+      <div class="readiness-level" style="color:${col}">${lv?lv.replace(/_/g,' '):'—'}</div>
+      ${fb?`<div class="readiness-feedback">${x(fb)}</div>`:''}
     </div>
   </div>`
-
-  const bb = s.body_battery, sl = s.sleep
+  const bb=s.body_battery, sl=s.sleep
   if (bb||sl) {
-    h += `<div class="row">`
-    if (bb) h += `<div class="card">
+    h+=`<div class="row">`
+    if (bb) h+=`<div class="card">
       <div class="metric-label"><span class="dot" style="background:var(--orange)"></span>Body Battery</div>
       <div class="metric-value">${bb.current??bb.high??'—'}</div>
       ${bb.low!=null?`<div class="metric-sub">Low: ${bb.low}</div>`:''}
     </div>`
     if (sl) {
-      const sc2 = sl.score>=80?'var(--green)':sl.score>=60?'var(--orange)':sl.score?'var(--red)':'var(--dim)'
-      h += `<div class="card">
+      const sc2=sl.score>=80?'var(--green)':sl.score>=60?'var(--orange)':sl.score?'var(--red)':'var(--dim)'
+      h+=`<div class="card">
         <div class="metric-label"><span class="dot" style="background:${sc2}"></span>Sleep</div>
         <div class="metric-value">${sl.score??'—'}</div>
         <div class="metric-sub">${sl.duration_h??'—'}h · ${sl.deep_h??'—'}h deep</div>
       </div>`
     }
-    h += `</div>`
+    h+=`</div>`
   }
-
-  if (s.rhr || s.stress!=null) {
-    h += `<div class="row">`
-    if (s.rhr) h += `<div class="card">
+  if (s.rhr||s.stress!=null) {
+    h+=`<div class="row">`
+    if (s.rhr) h+=`<div class="card">
       <div class="metric-label"><span class="dot" style="background:var(--red)"></span>Resting HR</div>
       <div class="metric-value">${s.rhr} <span class="metric-unit">bpm</span></div>
     </div>`
     if (s.stress!=null) {
-      const sc3 = s.stress<26?'var(--green)':s.stress<51?'var(--orange)':'var(--red)'
-      h += `<div class="card">
+      const sc3=s.stress<26?'var(--green)':s.stress<51?'var(--orange)':'var(--red)'
+      h+=`<div class="card">
         <div class="metric-label"><span class="dot" style="background:${sc3}"></span>Stress</div>
         <div class="metric-value" style="color:${sc3}">${s.stress}</div>
       </div>`
     }
-    if (s.training_status) h += `<div class="card">
+    if (s.training_status) h+=`<div class="card">
       <div class="metric-label">Training Status</div>
       <div style="font-size:14px;font-weight:900;margin-top:5px">${x(s.training_status)}</div>
     </div>`
-    h += `</div>`
+    h+=`</div>`
   }
-
-  const hrv = s.hrv
+  const hrv=s.hrv
   if (hrv?.last_night||hrv?.weekly_avg) {
-    const badge = hrv.status ? `<span class="hrv-badge ${hrv.status}">${hrv.status}</span>` : ''
-    h += `<div class="card">
+    const badge=hrv.status?`<span class="hrv-badge ${hrv.status}">${hrv.status}</span>`:''
+    h+=`<div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div class="metric-label">HRV</div>${badge}
       </div>
@@ -805,53 +909,217 @@ function renderToday(s) {
       </div>
     </div>`
   }
-  document.getElementById('today-body').innerHTML = h
+  document.getElementById('today-body').innerHTML=h
 }
 
-// ── TRAINING ─────────────────────────────────────────────
-let training_loaded = false
-let all_acts = []
-let act_filter = 'all'
+// ── TRAINING ─────────────────────────────────────────────────
+let training_loaded=false
+let all_acts=[]
+let trainRange='M'
+let trainType='all'
+let trainDetailOpen=false
+let detailAct=null
+let detailMsgs=[], detailCid=null, detailLoading=false
 
 async function loadTraining() {
-  training_loaded = true
-  const b = document.getElementById('training-body')
-  b.innerHTML = `<div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Loading Activities</div></div>`
-  try {
-    all_acts = await api('GET','/activities?limit=40')
-    if (!Array.isArray(all_acts)) all_acts = all_acts.activities || []
-    renderActs()
-    try { const p=await api('GET','/plan'); if(p?.sessions?.length) appendPlan(p) } catch(_) {}
-  } catch(e) { b.innerHTML = errBanner(e.message) }
-}
-
-function setActFilter(f) {
-  act_filter=f
-  document.querySelectorAll('#training-filter-row .chip').forEach(c=>c.classList.toggle('active',c.dataset.f===f))
-  renderActs()
-}
-
-function renderActs() {
-  let acts = all_acts
-  if (act_filter==='running')  acts=acts.filter(a=>(a.type||'').toLowerCase().includes('run'))
-  if (act_filter==='strength') acts=acts.filter(a=>{const t=(a.type||'').toLowerCase();return t.includes('strength')||t.includes('fitness')})
+  training_loaded=true
   const b=document.getElementById('training-body')
-  if (!acts.length) { b.innerHTML=`<div class="empty"><div class="empty-title">No Activities</div></div>`; return }
+  b.innerHTML=`<div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Loading Activities</div></div>`
+  document.getElementById('chart-area').innerHTML=''
+  const since=rangeToSince(trainRange)
+  const limit=trainRange==='1Y'?500:trainRange==='6M'?300:150
+  try {
+    all_acts=await api('GET',`/activities?since=${since}&limit=${limit}`)
+    if (!Array.isArray(all_acts)) all_acts=all_acts.activities||[]
+    renderTrainingView()
+  } catch(e) { b.innerHTML=errBanner(e.message) }
+}
+
+function setRange(r) {
+  trainRange=r
+  document.querySelectorAll('#range-row .fchip[data-r]').forEach(c=>c.classList.toggle('active',c.dataset.r===r))
+  training_loaded=false
+  loadTraining()
+}
+
+function setActType(t) {
+  trainType=t
+  document.querySelectorAll('#range-row .fchip[data-t]').forEach(c=>c.classList.toggle('active',c.dataset.t===t))
+  renderTrainingView()
+}
+
+function filteredActs() {
+  if (trainType==='running')  return all_acts.filter(a=>isRun(a.type))
+  if (trainType==='strength') return all_acts.filter(a=>isStrength(a.type))
+  return all_acts
+}
+
+function renderTrainingView() {
+  renderChart()
+  renderActsList()
+}
+
+// ── Mileage Chart ────────────────────────────────────────────
+function renderChart() {
+  const area=document.getElementById('chart-area')
+  const showDist=trainType!=='strength'
+  const relevantActs=trainType==='strength'
+    ? all_acts.filter(a=>isStrength(a.type))
+    : all_acts.filter(a=>(a.distance_km||0)>0&&isRun(a.type)||((a.distance_km||0)>0))
+
+  if (!relevantActs.length) { area.innerHTML=''; return }
+
+  const today=new Date()
+  const todayStr=today.toISOString().slice(0,10)
+
+  // Build time buckets based on range
+  const buckets=[]
+  if (trainRange==='W') {
+    // Daily buckets: Mon–today
+    const mon=new Date(today); mon.setDate(today.getDate()-today.getDay()+1)
+    for (let i=0;i<7;i++) {
+      const d=new Date(mon); d.setDate(mon.getDate()+i)
+      if (d>today) break
+      const ds=d.toISOString().slice(0,10)
+      buckets.push({start:ds,end:ds,label:d.toLocaleDateString('en-US',{weekday:'short'}).slice(0,1)})
+    }
+  } else if (trainRange==='M') {
+    // Weekly buckets within current month
+    const monthStart=new Date(today.getFullYear(),today.getMonth(),1)
+    let cur=new Date(monthStart)
+    while (cur<=today) {
+      const wEnd=new Date(cur); wEnd.setDate(cur.getDate()+6)
+      if (wEnd>today) wEnd.setTime(today.getTime())
+      const label=cur.toLocaleDateString('en-US',{month:'short',day:'numeric'})
+      buckets.push({start:cur.toISOString().slice(0,10),end:wEnd.toISOString().slice(0,10),label})
+      cur.setDate(cur.getDate()+7)
+    }
+  } else if (trainRange==='3M'||trainRange==='6M') {
+    // Weekly buckets
+    const days=trainRange==='3M'?91:182
+    const start=new Date(today); start.setDate(today.getDate()-days)
+    // Align to Monday
+    const dow=start.getDay(); start.setDate(start.getDate()-(dow===0?6:dow-1))
+    let cur=new Date(start)
+    while (cur<=today) {
+      const wEnd=new Date(cur); wEnd.setDate(cur.getDate()+6)
+      if (wEnd>today) wEnd.setTime(today.getTime())
+      const label=cur.toLocaleDateString('en-US',{month:'short',day:'numeric'})
+      buckets.push({start:cur.toISOString().slice(0,10),end:wEnd.toISOString().slice(0,10),label})
+      cur.setDate(cur.getDate()+7)
+    }
+  } else { // 1Y — monthly
+    for (let i=11;i>=0;i--) {
+      const d=new Date(today.getFullYear(),today.getMonth()-i,1)
+      const mEnd=new Date(d.getFullYear(),d.getMonth()+1,0)
+      if (mEnd>today) mEnd.setTime(today.getTime())
+      const label=d.toLocaleDateString('en-US',{month:'short'})
+      buckets.push({start:d.toISOString().slice(0,10),end:mEnd.toISOString().slice(0,10),label})
+    }
+  }
+
+  // Aggregate
+  buckets.forEach(b=>{
+    if (showDist) {
+      b.val=relevantActs
+        .filter(a=>a.startTimeLocal&&a.startTimeLocal.slice(0,10)>=b.start&&a.startTimeLocal.slice(0,10)<=b.end)
+        .reduce((s,a)=>s+(a.distance_km||0),0)
+      b.val=Math.round(b.val*10)/10
+    } else {
+      b.val=relevantActs
+        .filter(a=>a.startTimeLocal&&a.startTimeLocal.slice(0,10)>=b.start&&a.startTimeLocal.slice(0,10)<=b.end)
+        .length
+    }
+  })
+
+  const total=buckets.reduce((s,b)=>s+b.val,0)
+  if (!total) { area.innerHTML=''; return }
+
+  const avgPerWeek=trainRange==='1Y'
+    ? Math.round(total/52*10)/10
+    : trainRange==='6M' ? Math.round(total/26*10)/10
+    : trainRange==='3M' ? Math.round(total/13*10)/10
+    : trainRange==='M'  ? Math.round(total/4*10)/10
+    : total
+
+  const unit=showDist?'km':'sessions'
+  const avgLabel=trainRange==='W'?'this week':`avg/wk`
+
+  const maxVal=Math.max(...buckets.map(b=>b.val),1)
+  const nBars=buckets.length
+  const barH=80
+  const chartH=barH+28
+
+  // Render SVG
+  let bars=''
+  buckets.forEach((b,i)=>{
+    const frac=b.val/maxVal
+    const bh=Math.max(frac*barH,b.val>0?2:0)
+    const isLast=b.end>=todayStr.slice(0,b.end.length)
+    const fill=isLast?'var(--red)':'rgba(255,31,31,0.35)'
+    const pct=`${i/(nBars>1?nBars-1:1)*100}%`
+    bars+=`<g transform="translate(${i},0)">
+      <rect x="0.5" y="${barH-bh}" width="0.8" height="${bh}" fill="${fill}" rx="0.1"/>
+    </g>`
+  })
+
+  // X-axis labels — show every Nth depending on count
+  const step=nBars<=7?1:nBars<=13?2:nBars<=26?4:1
+  let labels=''
+  buckets.forEach((b,i)=>{
+    if (i%step===0||i===nBars-1) {
+      const lx=`${i/(nBars>1?nBars-1:1)*100}%`
+      labels+=`<text x="${lx}" y="100%" font-size="7" fill="rgba(255,255,255,0.35)" font-weight="700" letter-spacing="0.3" text-anchor="middle" dominant-baseline="auto" dy="-2">${b.label}</text>`
+    }
+  })
+
+  const totalDisplay=showDist?total.toFixed(1):total
+  const avgDisplay=showDist?avgPerWeek.toFixed(1):avgPerWeek
+
+  area.innerHTML=`<div class="chart-wrap">
+    <div class="chart-header">
+      <div>
+        <div class="chart-ttl">${showDist?'Distance':'Sessions'} · ${trainRange}</div>
+        <div class="chart-total">${totalDisplay} <span style="font-size:14px;font-weight:400;color:var(--dim)">${unit}</span></div>
+        ${trainRange!=='W'?`<div class="chart-sub">${avgDisplay} ${unit} ${avgLabel}</div>`:''}
+      </div>
+    </div>
+    <svg class="chart-svg" viewBox="0 0 ${nBars} ${chartH}" preserveAspectRatio="none"
+      style="height:${chartH}px">
+      ${bars}
+      <g style="font-family:-apple-system,sans-serif" transform="translate(0,${barH+2})">
+        ${labels}
+      </g>
+    </svg>
+  </div>`
+}
+
+// ── Activities List ──────────────────────────────────────────
+function renderActsList() {
+  const acts=filteredActs()
+  const b=document.getElementById('training-body')
+  if (!acts.length) {
+    b.innerHTML=`<div class="empty"><div class="empty-title">No Activities</div><div class="empty-sub">Try a different filter or sync.</div></div>`
+    return
+  }
   let h=''
   for (const a of acts) {
     const tp=(a.type||'').replace(/_/g,' ')
     const tz=(a.hrZ1s||0)+(a.hrZ2s||0)+(a.hrZ3s||0)+(a.hrZ4s||0)+(a.hrZ5s||0)
-    const zbar = tz>0 ? `<div class="zone-bar" aria-hidden="true">${
+    const zbar=tz>0?`<div class="zone-bar" aria-hidden="true">${
       [[a.hrZ1s,'#4a9eff'],[a.hrZ2s,'#34c759'],[a.hrZ3s,'#ffd60a'],[a.hrZ4s,'#ff9500'],[a.hrZ5s,'#FF1F1F']]
       .filter(z=>z[0]>0).map(z=>`<div class="zone-seg" style="flex:${z[0]};background:${z[1]}"></div>`).join('')
-    }</div>` : ''
-    const actDate=(a.startTimeLocal||'').slice(0,10)
-    h+=`<div class="act-item">
+    }</div>`:''
+    const safeA=JSON.stringify(a).replace(/'/g,"&#39;")
+    h+=`<div class="act-item" onclick="openDetail(${acts.indexOf(a)})">
       <div class="act-hdr">
-        <div><div class="act-name">${x(a.name||'Activity')}</div><div class="act-type">${x(tp)}</div></div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <div>
+          <div class="act-name">${x(a.name||'Activity')}</div>
+          <div class="act-type">${x(tp)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
           <div class="act-date">${fmt_date(a.startTimeLocal)}</div>
-          ${actDate?`<button class="abtn ghost" style="padding:4px 10px;font-size:10px;min-height:28px;letter-spacing:0.5px" onclick="analyzeActivity('${actDate}')">Analyze</button>`:''}
+          <button class="analyze-btn" onclick="event.stopPropagation();openDetailAndAnalyze(${acts.indexOf(a)})" aria-label="Analyze">Analyze</button>
         </div>
       </div>
       <div class="act-stats">
@@ -863,67 +1131,144 @@ function renderActs() {
       </div>${zbar}
     </div>`
   }
-  h+=`<div class="sec-div"><div class="sec-bar" aria-hidden="true"></div><div class="sec-lbl">Post-Run Eval</div></div>
-    <button class="abtn full" id="eval-btn" onclick="doEval()">Evaluate Last Run</button>
-    <div id="eval-out"></div>`
   b.innerHTML=h
 }
 
-function appendPlan(plan) {
-  const s=plan.sessions||[]; if(!s.length) return
-  let h=`<div class="sec-div"><div class="sec-bar" aria-hidden="true"></div><div class="sec-lbl">Plan · ${x(plan.week_start||'')} – ${x(plan.week_end||'')}</div></div>`
-  for (const ss of s) {
-    const ok=ss.completed,err=ss.error
-    const col=ok?'var(--green)':err?'var(--red)':'var(--dim)'
-    const sym=ok?'✓':err?'✗':'·'
-    h+=`<div class="plan-row">
-      <div style="font-size:16px;font-weight:900;color:${col};width:16px;text-align:center" aria-label="${ok?'Completed':err?'Error':'Pending'}">${sym}</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:14px;font-weight:700">${x(ss.name||'Session')}</div>
-        <div style="font-size:12px;color:var(--dim)">${x(ss.date||'')}</div>
-      </div>
-    </div>`
+// ── Activity Detail ──────────────────────────────────────────
+function openDetail(idx) {
+  const acts=filteredActs()
+  detailAct=acts[idx]
+  if (!detailAct) return
+  detailMsgs=[]; detailCid=null; detailLoading=false
+  renderDetailPanel(false)
+  document.getElementById('train-detail').classList.add('open')
+  trainDetailOpen=true
+  renderDetailHeader(detailAct.name)
+}
+
+function openDetailAndAnalyze(idx) {
+  openDetail(idx)
+  setTimeout(()=>runDetailAnalyze(),100)
+}
+
+function closeDetail() {
+  document.getElementById('train-detail').classList.remove('open')
+  trainDetailOpen=false
+  detailAct=null; detailMsgs=[]; detailCid=null
+  renderHeader('training')
+}
+
+function renderDetailPanel(autoScrollToAnalysis) {
+  const a=detailAct
+  if (!a) return
+  const tp=(a.type||'').replace(/_/g,' ')
+  const tz=(a.hrZ1s||0)+(a.hrZ2s||0)+(a.hrZ3s||0)+(a.hrZ4s||0)+(a.hrZ5s||0)
+  const zbar=tz>0?`<div class="zone-bar" style="height:4px;margin-top:2px" aria-hidden="true">${
+    [[a.hrZ1s,'#4a9eff'],[a.hrZ2s,'#34c759'],[a.hrZ3s,'#ffd60a'],[a.hrZ4s,'#ff9500'],[a.hrZ5s,'#FF1F1F']]
+    .filter(z=>z[0]>0).map(z=>`<div class="zone-seg" style="flex:${z[0]};background:${z[1]}"></div>`).join('')
+  }</div>`:''
+
+  let statsHtml=''
+  const stats=[
+    {v:a.distance_km?`${a.distance_km} km`:'—', l:'Distance'},
+    {v:a.duration_min?`${Math.round(a.duration_min)}m`:'—', l:'Duration'},
+    {v:a.averageHR?`${a.averageHR} bpm`:'—', l:'Avg HR'},
+    {v:a.maxHR?`${a.maxHR} bpm`:'—', l:'Max HR'},
+    {v:a.avgCadence?`${Math.round(a.avgCadence)}`:'—', l:'Cadence'},
+    {v:a.aerobicTE??'—', l:'Aerobic TE'},
+  ]
+  statsHtml=`<div class="detail-stats-grid">${stats.map(s=>`<div class="detail-stat"><div class="detail-stat-v">${s.v}</div><div class="detail-stat-l">${s.l}</div></div>`).join('')}</div>`
+
+  // Analysis section
+  let analysisHtml=''
+  if (!detailMsgs.length && !detailLoading) {
+    analysisHtml=`<button class="abtn full" id="detail-analyze-btn" onclick="runDetailAnalyze()">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2 12h2v2H2zm3-4h2v6H5zm3-3h2v9H8zm3-4h2v13h-2z"/></svg>
+      Analyze This Activity
+    </button>`
+  } else if (detailLoading && !detailMsgs.length) {
+    analysisHtml=`<div class="bwrap"><div class="typing" aria-label="Analyzing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`
+  } else {
+    analysisHtml=detailMsgs.map(m=>`<div class="bwrap"><div class="bubble ${m.r}">${m.r==='assistant'?md(m.t):x(m.t)}</div></div>`).join('')
+    if (detailLoading) analysisHtml+=`<div class="bwrap"><div class="typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`
   }
-  document.getElementById('training-body').innerHTML += h
+
+  const followup=detailMsgs.length&&!detailLoading?`<div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:8px">
+    <textarea class="ifield" id="detail-input" placeholder="Ask a follow-up…" rows="1"
+      oninput="autoH(this)" onkeydown="dkd(event)"></textarea>
+    <button class="abtn full" onclick="detailSend()">Send</button>
+  </div>`:''
+
+  document.getElementById('train-detail').innerHTML=`
+    <div class="pad gap" style="flex:1">
+      <div>
+        <div class="detail-act-name">${x(a.name||'Activity')}</div>
+        <div class="detail-act-type">${x(tp)} · ${fmt_date(a.startTimeLocal)}</div>
+      </div>
+      ${zbar}
+      ${statsHtml}
+      <div class="sec-div"><div class="sec-bar"></div><div class="sec-lbl">Analysis</div></div>
+      ${analysisHtml}
+    </div>
+    ${followup}
+  `
 }
 
-async function doEval() {
-  const btn=document.getElementById('eval-btn'), out=document.getElementById('eval-out')
-  btn.disabled=true; btn.innerHTML=`<div class="spinner sm"></div> Evaluating…`; out.innerHTML=''
+async function runDetailAnalyze() {
+  if (!detailAct || detailLoading) return
+  const date=(detailAct.startTimeLocal||'').slice(0,10)
+  if (!date) { toast('No date for this activity'); return }
+  detailLoading=true; detailMsgs=[]
+  renderDetailPanel(true)
   try {
-    const d=await api('POST','/evaluate',{})
-    out.innerHTML=`<div class="bwrap"><div class="bubble assistant">${md(d.report)}</div></div>`
-    out.scrollIntoView({behavior:'smooth'})
-  } catch(e) { out.innerHTML=errBanner(e.message) }
-  finally { btn.disabled=false; btn.innerHTML='Evaluate Last Run' }
+    const d=await api('POST','/analyze',{period:`${date}:${date}`})
+    detailCid=d.conversation_id
+    detailMsgs=[{r:'assistant',t:d.report}]
+  } catch(e) { detailMsgs=[{r:'assistant',t:'Error: '+e.message}] }
+  finally { detailLoading=false; renderDetailPanel(true) }
 }
 
-// ── COACH ────────────────────────────────────────────────
+async function detailSend() {
+  const el=document.getElementById('detail-input')
+  if (!el) return
+  const t=el.value.trim()
+  if (!t||detailLoading) return
+  el.value=''; el.style.height='auto'
+  detailMsgs.push({r:'user',t}); detailLoading=true; renderDetailPanel(false)
+  try {
+    const d=await api('POST','/chat',{message:t,conversation_id:detailCid,kind:'analyze'})
+    detailCid=d.conversation_id; detailMsgs.push({r:'assistant',t:d.message.content})
+  } catch(e) { detailMsgs.push({r:'assistant',t:'Error: '+e.message}) }
+  finally { detailLoading=false; renderDetailPanel(false) }
+}
+function dkd(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();detailSend()} }
+
+// ── COACH ────────────────────────────────────────────────────
 let ct='chat', c_reply_kind='ask', c_cid=null, c_msgs=[], c_loading=false
 
 const SUGS=['How\'s my training load this week?','Am I ready for a hard session today?','What pace should I target for easy runs?','How\'s my HRV trend lately?']
 
 function setCoachType(t) {
   ct=t; c_cid=null; c_msgs=[]
-  c_reply_kind = (t === 'chat' || t === 'history') ? 'ask' : 'coach'
+  c_reply_kind=(t==='chat'||t==='history')?'ask':'coach'
   document.querySelectorAll('#coach-chip-row .chip').forEach(c=>c.classList.toggle('active',c.dataset.ct===t))
-  if (t === 'history') { updateUploadBar(); loadCoachHistory(); return }
+  if (t==='history') { updateUploadBar(); loadCoachHistory(); return }
   renderCoach(); updateUploadBar()
 }
 
 async function loadCoachHistory() {
-  const area = document.getElementById('coach-msgs')
-  area.innerHTML = `<div class="loading-card" style="margin:12px 16px"><div class="spinner"></div><div class="loading-lbl">Loading History</div></div>`
+  const area=document.getElementById('coach-msgs')
+  area.innerHTML=`<div class="loading-card" style="margin:12px 16px"><div class="spinner"></div><div class="loading-lbl">Loading History</div></div>`
   try {
-    const data = await api('GET', '/conversations')
-    const convs = (data.conversations||[]).filter(c=>c.kind==='coach'||c.kind==='ask')
+    const data=await api('GET','/conversations')
+    const convs=(data.conversations||[]).filter(c=>c.kind==='coach'||c.kind==='ask')
     if (!convs.length) {
-      area.innerHTML = `<div class="empty"><div class="empty-title">No History</div><div class="empty-sub">Past coach and chat sessions will appear here.</div></div>`
+      area.innerHTML=`<div class="empty"><div class="empty-title">No History</div><div class="empty-sub">Past coach and chat sessions will appear here.</div></div>`
       return
     }
-    area.innerHTML = `<div class="pad gap">` + convs.map(c => {
-      const badge = c.kind==='ask' ? 'CHAT' : 'COACH'
-      const dt = c.updated_at ? new Date(c.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : ''
+    area.innerHTML=`<div class="pad gap">`+convs.map(c=>{
+      const badge=c.kind==='ask'?'CHAT':'COACH'
+      const dt=c.updated_at?new Date(c.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}):''
       return `<div class="conv-item" onclick="openCoachConversation(${c.id})">
         <div style="display:flex;align-items:center;gap:8px">
           <span class="conv-badge">${badge}</span>
@@ -932,36 +1277,36 @@ async function loadCoachHistory() {
         <div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x(c.title||'Session')}</div>
         ${c.preview?`<div style="font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x(c.preview)}</div>`:''}
       </div>`
-    }).join('') + `</div>`
-  } catch(e) { area.innerHTML = `<div style="padding:16px">${errBanner(e.message)}</div>` }
+    }).join('')+`</div>`
+  } catch(e) { area.innerHTML=`<div style="padding:16px">${errBanner(e.message)}</div>` }
 }
 
 async function openCoachConversation(id) {
-  const area = document.getElementById('coach-msgs')
-  area.innerHTML = `<div class="loading-card" style="margin:12px 16px"><div class="spinner"></div><div class="loading-lbl">Loading</div></div>`
+  const area=document.getElementById('coach-msgs')
+  area.innerHTML=`<div class="loading-card" style="margin:12px 16px"><div class="spinner"></div><div class="loading-lbl">Loading</div></div>`
   try {
-    const conv = await api('GET', `/conversations/${id}`)
-    c_cid = conv.id
-    c_reply_kind = conv.kind === 'ask' ? 'ask' : 'coach'
-    ct = conv.kind === 'ask' ? 'chat' : 'history'  // keep 'history' chip active for coach kind
-    c_msgs = (conv.messages||[]).map(m=>({r:m.role==='user'?'user':'assistant',t:m.content}))
+    const conv=await api('GET',`/conversations/${id}`)
+    c_cid=conv.id
+    c_reply_kind=conv.kind==='ask'?'ask':'coach'
+    ct=conv.kind==='ask'?'chat':'history'
+    c_msgs=(conv.messages||[]).map(m=>({r:m.role==='user'?'user':'assistant',t:m.content}))
     renderCoach(); updateUploadBar()
-  } catch(e) { area.innerHTML = `<div style="padding:16px">${errBanner(e.message)}</div>` }
+  } catch(e) { area.innerHTML=`<div style="padding:16px">${errBanner(e.message)}</div>` }
 }
 
 function renderCoach() {
   const area=document.getElementById('coach-msgs')
-  if (ct === 'history' && !c_msgs.length) return  // handled by loadCoachHistory
+  if (ct==='history'&&!c_msgs.length) return
   if (!c_msgs.length) {
     if (ct==='chat') {
       area.innerHTML=`
         <div class="empty" style="padding:36px 24px 20px">
           <div style="font-size:44px;line-height:1;margin-bottom:4px" aria-hidden="true">&#x1F4AC;</div>
-          <div style="font-size:18px;font-weight:900;letter-spacing:1px">ASK YOUR COACH</div>
-          <div style="font-size:13px;color:var(--dim);text-align:center">Evidence-based answers about your training, recovery, and goals.</div>
+          <div style="font-size:16px;font-weight:900;letter-spacing:2px">ASK YOUR COACH</div>
+          <div style="font-size:13px;color:var(--dim);text-align:center;max-width:260px">Evidence-based answers about your training, recovery, and goals.</div>
         </div>
         <div style="padding:0 16px;display:flex;flex-direction:column;gap:8px;padding-bottom:8px">
-          ${SUGS.map(s=>`<button class="sug-btn" onclick="coachSug(${JSON.stringify(s)})"><span>${x(s)}</span><span class="sug-arrow" aria-hidden="true">↗</span></button>`).join('')}
+          ${SUGS.map(s=>`<button class="sug-btn" onclick="coachSug(${JSON.stringify(s)})"><span>${x(s)}</span><span class="sug-arrow">↗</span></button>`).join('')}
         </div>`
     } else {
       const lbl=ct.replace(/-/g,' ')
@@ -975,7 +1320,7 @@ function renderCoach() {
     return
   }
   area.innerHTML=c_msgs.map(m=>`<div class="bwrap"><div class="bubble ${m.r}">${m.r==='assistant'?md(m.t):x(m.t)}</div></div>`).join('')
-  if (c_loading) area.innerHTML+=`<div class="bwrap"><div class="typing" aria-label="Coach is typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`
+  if (c_loading) area.innerHTML+=`<div class="bwrap"><div class="typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`
   if (ct!=='chat'&&ct!=='history'&&!c_loading) area.innerHTML+=`<div style="padding:12px 16px"><button class="abtn full" onclick="getCoaching()">Re-generate</button></div>`
   area.scrollTop=area.scrollHeight
 }
@@ -1017,7 +1362,6 @@ async function coachSend() {
   if(!t||c_loading) return; el.value=''; el.style.height='auto'; await cSendMsg(t)
 }
 async function coachSug(t) { await cSendMsg(t) }
-
 async function cSendMsg(text) {
   c_msgs.push({r:'user',t:text}); c_loading=true; renderCoach()
   try {
@@ -1028,135 +1372,24 @@ async function cSendMsg(text) {
 }
 function ckd(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();coachSend()} }
 
-// ── ANALYZE ──────────────────────────────────────────────
-let ap=null, ap_override=null, a_cid=null, a_msgs=[], a_loading=false
-
-function setAP(p) {
-  ap_override=null; ap=p
-  document.querySelectorAll('#analyze-chip-row .chip').forEach(c=>c.classList.toggle('active',c.dataset.p===p))
-  const cr=document.getElementById('analyze-custom-row')
-  cr.style.display = (p==='custom')?'flex':'none'
-  const rb=document.getElementById('analyze-run-btn')
-  if(rb) rb.style.display = (p==='history')?'none':''
-  const fu=document.getElementById('analyze-followup')
-  if(fu && p==='history') fu.style.display='none'
-  if(p==='custom'){
-    const t=new Date().toISOString().slice(0,10), w=new Date(Date.now()-7*864e5).toISOString().slice(0,10)
-    document.getElementById('a-start').value=w; document.getElementById('a-end').value=t
-  }
-  if(p==='history') { a_msgs=[]; renderAnalyze(); loadAnalyzeHistory() }
-}
-
-async function loadAnalyzeHistory() {
-  const area=document.getElementById('analyze-msgs')
-  area.innerHTML=`<div class="loading-card" style="margin:0 0 8px"><div class="spinner"></div><div class="loading-lbl">Loading History</div></div>`
-  try {
-    const data=await api('GET','/conversations?kind=analyze')
-    const convs=(data.conversations||[])
-    if(!convs.length){
-      area.innerHTML=`<div class="empty"><div class="empty-title">No History</div><div class="empty-sub">Past analysis sessions will appear here.</div></div>`
-      return
-    }
-    area.innerHTML=convs.map(c=>{
-      const dt=c.updated_at?new Date(c.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}):''
-      return `<div class="conv-item" onclick="openAnalyzeConversation(${c.id})">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span class="conv-badge">ANALYSIS</span>
-          <span style="font-size:11px;color:var(--dim)">${dt}</span>
-        </div>
-        <div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x(c.title||'Analysis')}</div>
-      </div>`
-    }).join('')
-  } catch(e) { area.innerHTML=errBanner(e.message) }
-}
-
-async function openAnalyzeConversation(id) {
-  const area=document.getElementById('analyze-msgs')
-  area.innerHTML=`<div class="loading-card" style="margin:0 0 8px"><div class="spinner"></div><div class="loading-lbl">Loading</div></div>`
-  try {
-    const conv=await api('GET',`/conversations/${id}`)
-    a_cid=conv.id
-    a_msgs=(conv.messages||[]).map(m=>({r:m.role==='user'?'user':'assistant',t:m.content}))
-    renderAnalyze()
-    const fu=document.getElementById('analyze-followup')
-    if(fu){ fu.style.display='flex' }
-  } catch(e) { area.innerHTML=errBanner(e.message) }
-}
-
-function buildPP() {
-  if(ap_override) return ap_override
-  if(!ap) return null
-  if(ap==='today') return new Date().toISOString().slice(0,10)
-  if(ap==='custom'){
-    const s=document.getElementById('a-start').value, e=document.getElementById('a-end').value
-    return (s&&e)?`${s}:${e}`:null
-  }
-  return ap
-}
-
-function analyzeActivity(date) {
-  ap_override=`${date}:${date}`
-  document.querySelectorAll('#analyze-chip-row .chip').forEach(c=>c.classList.remove('active'))
-  document.getElementById('analyze-custom-row').style.display='none'
-  runAnalyze()
-  document.getElementById('analyze-section').scrollIntoView({behavior:'smooth'})
-}
-
-async function runAnalyze() {
-  const pp=buildPP(); if(!pp){toast('Select a period first');return}
-  a_loading=true; a_cid=null; a_msgs=[]
-  const fu=document.getElementById('analyze-followup')
-  if(fu) fu.style.display='none'
-  renderAnalyze()
-  try {
-    const d=await api('POST','/analyze',{period:pp})
-    a_cid=d.conversation_id; a_msgs=[{r:'assistant',t:d.report}]
-    if(fu){ fu.style.display='flex'; document.getElementById('analyze-msgs').scrollIntoView({behavior:'smooth'}) }
-  } catch(e) { a_msgs=[{r:'assistant',t:'Error: '+e.message}] }
-  finally { a_loading=false; renderAnalyze() }
-}
-
-function renderAnalyze() {
-  const area=document.getElementById('analyze-msgs')
-  if(!a_msgs.length) {
-    area.innerHTML=a_loading?`<div class="bwrap"><div class="typing" aria-label="Analyzing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`:''
-    return
-  }
-  area.innerHTML=a_msgs.map(m=>`<div class="bwrap"><div class="bubble ${m.r}">${m.r==='assistant'?md(m.t):x(m.t)}</div></div>`).join('')
-  if(a_loading) area.innerHTML+=`<div class="bwrap"><div class="typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`
-}
-
-async function analyzeSend() {
-  const el=document.getElementById('analyze-input'), t=el.value.trim()
-  if(!t||a_loading) return; el.value=''; el.style.height='auto'
-  a_msgs.push({r:'user',t}); a_loading=true; renderAnalyze()
-  try {
-    const d=await api('POST','/chat',{message:t,conversation_id:a_cid,kind:'analyze'})
-    a_cid=d.conversation_id; a_msgs.push({r:'assistant',t:d.message.content})
-  } catch(e) { a_msgs.push({r:'assistant',t:'Error: '+e.message}) }
-  finally { a_loading=false; renderAnalyze() }
-}
-function akd(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();analyzeSend()} }
-
-// ── Error helper ─────────────────────────────────────────
+// ── Error helper ─────────────────────────────────────────────
 function errBanner(msg) {
-  return `<div class="banner error"><div class="banner-bar" aria-hidden="true"></div><div style="font-size:14px">${x(msg)}</div></div>`
+  return `<div class="banner error"><div class="banner-bar"></div><div style="font-size:14px">${x(msg)}</div></div>`
 }
 
-// ── Boot ─────────────────────────────────────────────────
+// ── Boot ─────────────────────────────────────────────────────
 renderHeader('today')
 if (C.ok) {
   document.getElementById('login-screen').classList.add('hidden')
   loadToday()
 } else {
-  setTimeout(() => document.getElementById('l-url').focus(), 100)
+  setTimeout(()=>document.getElementById('l-url').focus(),100)
 }
-
-document.getElementById('l-url').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('l-token').focus()
+document.getElementById('l-url').addEventListener('keydown',e=>{
+  if(e.key==='Enter') document.getElementById('l-token').focus()
 })
-document.getElementById('l-token').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doLogin()
+document.getElementById('l-token').addEventListener('keydown',e=>{
+  if(e.key==='Enter') doLogin()
 })
 </script>
 </body>

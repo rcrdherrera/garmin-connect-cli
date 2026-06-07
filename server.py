@@ -888,18 +888,31 @@ def get_status(local_date: str | None = Query(default=None)):
 # ── GET /activities ───────────────────────────────────────────────────────────
 
 @app.get("/activities", dependencies=[AUTH])
-def get_activities(limit: int = 20):
+def get_activities(
+    limit: int = 40,
+    since: str | None = Query(default=None),
+    until: str | None = Query(default=None),
+):
     """Recent activities with HR zone data — SQLite-first, Garmin API fallback."""
     try:
         conn = _db()
-        rows = _rows(conn.execute("""
+        conditions, params = [], []
+        if since:
+            conditions.append("start_time_local >= ?")
+            params.append(f"{since}T00:00:00")
+        if until:
+            conditions.append("start_time_local <= ?")
+            params.append(f"{until}T23:59:59")
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        params.append(limit)
+        rows = _rows(conn.execute(f"""
             SELECT activity_id, activity_name, activity_type,
                    distance_m, duration_s, avg_hr, max_hr, avg_cadence,
                    aerobic_te, training_load, calories, avg_speed_ms,
                    hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s,
                    start_time_local
-            FROM activities ORDER BY start_time_local DESC LIMIT ?
-        """, (limit,)).fetchall())
+            FROM activities {where} ORDER BY start_time_local DESC LIMIT ?
+        """, params).fetchall())
         conn.close()
         if rows:
             return [
