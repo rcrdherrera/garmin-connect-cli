@@ -1736,5 +1736,5 @@ def remember(req: RememberRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    host = os.environ.get("COACH_HOST", "127.0.0.1")
+    host = os.environ.get("COACH_HOST", "0.0.0.0")
     uvicorn.run("server:app", host=host, port=PORT, reload=False)
