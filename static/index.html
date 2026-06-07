@@ -507,16 +507,6 @@
       <div class="pad gap" id="today-body">
         <div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Fetching Garmin Data</div></div>
       </div>
-      <div style="padding: 0 16px 16px; display:flex; flex-direction:column; gap:8px;">
-        <div class="filter-row" id="today-range-row">
-          <button class="fchip active" data-tr="W"  onclick="setTodayRange('W')">W</button>
-          <button class="fchip"        data-tr="M"  onclick="setTodayRange('M')">M</button>
-          <button class="fchip"        data-tr="3M" onclick="setTodayRange('3M')">3M</button>
-          <button class="fchip"        data-tr="6M" onclick="setTodayRange('6M')">6M</button>
-          <button class="fchip"        data-tr="1Y" onclick="setTodayRange('1Y')">1Y</button>
-        </div>
-        <div id="today-chart-area"></div>
-      </div>
     </div>
 
     <!-- TRAINING ─────────────────────────────────────────────── -->
@@ -859,7 +849,6 @@ function setTodayRange(r) {
 async function loadTodayChart() {
   const area=document.getElementById('today-chart-area')
   if (!area) return
-  area.innerHTML='<div class="loading-card" style="padding:20px"><div class="spinner sm"></div></div>'
   try {
     const since=rangeToSince(todayRange)
     const limit=todayRange==='1Y'?500:todayRange==='6M'?300:150
@@ -906,6 +895,16 @@ function renderToday(s) {
       <div class="readiness-level" style="color:${col}">${lv?lv.replace(/_/g,' '):'—'}</div>
       ${fb?`<div class="readiness-feedback">${x(fb)}</div>`:''}
     </div>
+  </div>`
+  h+=`<div>
+    <div class="filter-row" id="today-range-row" style="margin-bottom:8px">
+      <button class="fchip ${todayRange==='W' ?'active':''}" data-tr="W"  onclick="setTodayRange('W')">W</button>
+      <button class="fchip ${todayRange==='M' ?'active':''}" data-tr="M"  onclick="setTodayRange('M')">M</button>
+      <button class="fchip ${todayRange==='3M'?'active':''}" data-tr="3M" onclick="setTodayRange('3M')">3M</button>
+      <button class="fchip ${todayRange==='6M'?'active':''}" data-tr="6M" onclick="setTodayRange('6M')">6M</button>
+      <button class="fchip ${todayRange==='1Y'?'active':''}" data-tr="1Y" onclick="setTodayRange('1Y')">1Y</button>
+    </div>
+    <div id="today-chart-area"><div class="loading-card" style="padding:20px"><div class="spinner sm"></div></div></div>
   </div>`
   const bb=s.body_battery, sl=s.sleep
   if (bb||sl) {
@@ -1015,7 +1014,7 @@ function renderChart(areaId, acts, range, type) {
     ? acts.filter(a=>isStrength(a.type))
     : acts.filter(a=>isRun(a.type)&&(a.distance_km||0)>0)
 
-  if (!relevantActs.length) { area.innerHTML=''; return }
+  if (!relevantActs.length) { area.innerHTML=`<div style="padding:16px 0;text-align:center;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase">No runs in this period</div>`; return }
 
   const today=new Date()
   const todayStr=today.toISOString().slice(0,10)
@@ -1074,7 +1073,7 @@ function renderChart(areaId, acts, range, type) {
   })
 
   const total=buckets.reduce((s,b)=>s+b.val,0)
-  if (!total) { area.innerHTML=''; return }
+  if (!total) { area.innerHTML=`<div style="padding:16px 0;text-align:center;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase">No runs in this period</div>`; return }
 
   const avgPerWeek=range==='1Y'?Math.round(total/52*10)/10
     :range==='6M'?Math.round(total/26*10)/10
