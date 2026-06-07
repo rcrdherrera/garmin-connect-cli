@@ -147,18 +147,15 @@ _REMEMBER_TOOL: dict = {
 
 
 async def _today_data_poller():
-    """Sync Garmin data every 5 minutes throughout the day.
+    """Sync Garmin data on startup then every 5 min (every 2 min during 6–9am).
 
-    Runs as a background task for the lifetime of the server. Always syncs
-    so that activities completed after the morning health sync appear promptly.
+    Runs on startup immediately so the app always has fresh data, then keeps
+    polling so activities logged throughout the day appear promptly.
     Each incremental sync (--since today) makes ~7 API calls and is idempotent.
     """
-    POLL_INTERVAL = 300  # 5 minutes
-
-    print("[poller] Started — syncing every 5 min for today's Garmin data")
+    print("[poller] Started — syncing now, then every 5 min (2 min during 6–9am)")
 
     while True:
-        await asyncio.sleep(POLL_INTERVAL)
         today = date.today().isoformat()
 
         print(f"[poller] {today}: syncing from Garmin...")
@@ -178,6 +175,10 @@ async def _today_data_poller():
                 print(f"[poller] {today}: sync failed (exit {result.returncode}): {result.stderr[:200]}")
         except Exception as exc:
             print(f"[poller] {today}: sync error: {exc}")
+
+        hour = datetime.now().hour
+        interval = 120 if 6 <= hour <= 9 else 300
+        await asyncio.sleep(interval)
 
 
 @asynccontextmanager
@@ -787,7 +788,9 @@ def get_status(local_date: str | None = Query(default=None)):
     _try("rhr", lambda: (g.get_heart_rates(today) or {}).get("restingHeartRate"))
     _try("stress", lambda: (g.get_stress_data(today) or {}).get("overallStressLevel"))
 
-    # DB fallback — backfill any field still None / empty from latest SQLite rows
+    # DB fallback — backfill any field still None / empty from latest SQLite rows.
+    # Only flag as stale when the DB row is from a previous day; today's DB data
+    # (written by the background poller) is treated as current.
     try:
         if DB_PATH.exists():
             _conn = sqlite3.connect(str(DB_PATH))
@@ -800,6 +803,9 @@ def get_status(local_date: str | None = Query(default=None)):
             ).fetchone()
             _conn.close()
 
+            _h_stale = bool(_h and _h["date"] != today)
+            _t_stale = bool(_t and _t["date"] != today)
+
             _readiness_val = result.get("readiness")
             if (_readiness_val is None or _readiness_val.get("score") is None) and _t:
                 result["readiness"] = {
@@ -807,23 +813,24 @@ def get_status(local_date: str | None = Query(default=None)):
                     "level": _t["readiness_level"],
                     "feedback": _t["readiness_feedback"],
                 }
-                result.setdefault("_stale_fields", []).append("readiness")
+                if _t_stale:
+                    result.setdefault("_stale_fields", []).append("readiness")
 
             _sleep_val = result.get("sleep")
             if _h and _h["sleep_score"]:
                 if _sleep_val is None:
-                    # No sleep data at all from the live API — use full DB row
                     result["sleep"] = {
                         "score": _h["sleep_score"],
                         "duration_h": round((_h["sleep_duration_s"] or 0) / 3600, 1),
                         "deep_h": round((_h["sleep_deep_s"] or 0) / 3600, 1),
                         "rem_h": round((_h["sleep_rem_s"] or 0) / 3600, 1),
                     }
-                    result.setdefault("_stale_fields", []).append("sleep")
+                    if _h_stale:
+                        result.setdefault("_stale_fields", []).append("sleep")
                 elif _sleep_val.get("score") is None:
-                    # Live API has duration but not score yet — patch just the score
                     result["sleep"] = {**_sleep_val, "score": _h["sleep_score"]}
-                    result.setdefault("_stale_fields", []).append("sleep")
+                    if _h_stale:
+                        result.setdefault("_stale_fields", []).append("sleep")
 
             _hrv_val = result.get("hrv")
             _hrv_empty = (
@@ -838,27 +845,32 @@ def get_status(local_date: str | None = Query(default=None)):
                     "baseline_low": _h["hrv_baseline_low"],
                     "baseline_high": _h["hrv_baseline_high"],
                 }
-                result.setdefault("_stale_fields", []).append("hrv")
+                if _h_stale:
+                    result.setdefault("_stale_fields", []).append("hrv")
 
             if result.get("body_battery") is None and _h:
                 result["body_battery"] = {
-                    "current": _h["body_battery_high"],   # day-high as best proxy when no live reading
+                    "current": _h["body_battery_high"],
                     "high": _h["body_battery_high"],
                     "low": _h["body_battery_low"],
                 }
-                result.setdefault("_stale_fields", []).append("body_battery")
+                if _h_stale:
+                    result.setdefault("_stale_fields", []).append("body_battery")
 
             if result.get("rhr") is None and _h and _h["rhr"]:
                 result["rhr"] = _h["rhr"]
-                result.setdefault("_stale_fields", []).append("rhr")
+                if _h_stale:
+                    result.setdefault("_stale_fields", []).append("rhr")
 
             if result.get("stress") is None and _h and _h["stress"]:
                 result["stress"] = _h["stress"]
-                result.setdefault("_stale_fields", []).append("stress")
+                if _h_stale:
+                    result.setdefault("_stale_fields", []).append("stress")
 
             if result.get("training_status") is None and _t and _t["training_status"]:
                 result["training_status"] = _t["training_status"]
-                result.setdefault("_stale_fields", []).append("training_status")
+                if _t_stale:
+                    result.setdefault("_stale_fields", []).append("training_status")
     except Exception as exc:
         errors.append(f"db_fallback: {exc}")
 

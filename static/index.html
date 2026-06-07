@@ -223,6 +223,17 @@
     .upload-done-ttl { font-size: 10px; font-weight: 900; letter-spacing: 1.5px; color: var(--green); text-transform: uppercase; margin-bottom: 4px; }
     .upload-done-row { display: flex; justify-content: space-between; font-size: 12px; color: rgba(255,255,255,0.7); margin: 2px 0; }
 
+    /* ── Conversation history ── */
+    .conv-item {
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 3px;
+    }
+    .conv-item:active { background: var(--card2); }
+    .conv-badge {
+      font-size: 9px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;
+      padding: 2px 7px; border-radius: 3px; background: var(--faint); color: var(--dim); white-space: nowrap;
+    }
+
     /* ── Activities ── */
     .act-item { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
     .act-hdr  { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
@@ -393,7 +404,7 @@
       </div>
     </div>
 
-    <!-- TRAINING ─────────────────────────────────────── -->
+    <!-- TRAINING + ANALYZE ──────────────────────────── -->
     <div class="tab-panel" id="tab-training">
       <div class="chip-row" id="training-filter-row">
         <button class="chip active" data-f="all"      onclick="setActFilter('all')">All</button>
@@ -402,6 +413,35 @@
       </div>
       <div class="pad gap" id="training-body">
         <div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Loading Activities</div></div>
+      </div>
+      <!-- ── Analysis section ─────────────────────── -->
+      <div class="sec-div" style="padding:6px 16px 2px" id="analyze-section">
+        <div class="sec-bar" aria-hidden="true"></div>
+        <div class="sec-lbl">Analysis</div>
+      </div>
+      <div class="chip-row" id="analyze-chip-row">
+        <button class="chip" data-p="today"     onclick="setAP('today')">Today</button>
+        <button class="chip" data-p="week"      onclick="setAP('week')">This Week</button>
+        <button class="chip" data-p="last-week" onclick="setAP('last-week')">Last Week</button>
+        <button class="chip" data-p="month"     onclick="setAP('month')">Month</button>
+        <button class="chip" data-p="custom"    onclick="setAP('custom')">Custom</button>
+        <button class="chip" data-p="history"   onclick="setAP('history')">History</button>
+      </div>
+      <div id="analyze-custom-row" style="display:none" class="date-row">
+        <input type="date" class="date-input" id="a-start" aria-label="Start date">
+        <input type="date" class="date-input" id="a-end" aria-label="End date">
+      </div>
+      <div style="padding:0 16px 12px">
+        <button class="abtn full" id="analyze-run-btn" onclick="runAnalyze()">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 12h2v2H2zm3-4h2v6H5zm3-3h2v9H8zm3-4h2v13h-2z"/></svg>
+          Analyze
+        </button>
+      </div>
+      <div class="pad gap" id="analyze-msgs"></div>
+      <div id="analyze-followup" style="display:none;padding:0 16px 24px;flex-direction:column;gap:8px">
+        <textarea class="ifield" id="analyze-input" placeholder="Ask a follow-up…" rows="1"
+          oninput="autoH(this)" onkeydown="akd(event)" aria-label="Follow-up question"></textarea>
+        <button class="abtn full" onclick="analyzeSend()" aria-label="Send">Send</button>
       </div>
     </div>
 
@@ -414,6 +454,7 @@
         <button class="chip"        data-ct="strength"   onclick="setCoachType('strength')">Strength</button>
         <button class="chip"        data-ct="lower-body" onclick="setCoachType('lower-body')">Lower Body</button>
         <button class="chip"        data-ct="upper-body" onclick="setCoachType('upper-body')">Upper Body</button>
+        <button class="chip"        data-ct="history"    onclick="setCoachType('history')">History</button>
       </div>
       <div id="upload-bar"></div>
       <div class="chat-scroll" id="coach-msgs"></div>
@@ -426,34 +467,6 @@
       </div>
     </div>
 
-    <!-- ANALYZE ─────────────────────────────────────── -->
-    <div class="tab-panel" id="tab-analyze">
-      <div class="chip-row" id="analyze-chip-row">
-        <button class="chip" data-p="today"     onclick="setAP('today')">Today</button>
-        <button class="chip" data-p="week"      onclick="setAP('week')">This Week</button>
-        <button class="chip" data-p="last-week" onclick="setAP('last-week')">Last Week</button>
-        <button class="chip" data-p="month"     onclick="setAP('month')">Month</button>
-        <button class="chip" data-p="custom"    onclick="setAP('custom')">Custom</button>
-      </div>
-      <div id="analyze-custom-row" style="display:none" class="date-row">
-        <input type="date" class="date-input" id="a-start" aria-label="Start date">
-        <input type="date" class="date-input" id="a-end" aria-label="End date">
-      </div>
-      <div style="padding:0 16px 12px">
-        <button class="abtn full" id="analyze-run-btn" onclick="runAnalyze()">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 12h2v2H2zm3-4h2v6H5zm3-3h2v9H8zm3-4h2v13h-2z"/></svg>
-          Analyze
-        </button>
-      </div>
-      <div class="chat-scroll" id="analyze-msgs"></div>
-      <div class="input-bar" id="analyze-ibar" style="display:none">
-        <textarea class="ifield" id="analyze-input" placeholder="Ask a follow-up…" rows="1"
-          oninput="autoH(this)" onkeydown="akd(event)" aria-label="Follow-up question"></textarea>
-        <button class="send-btn" id="analyze-send-btn" onclick="analyzeSend()" aria-label="Send">
-          <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="18"/><path d="M18 9l-1.5 1.5 6 6H10v3h12.5l-6 6L18 27l9-9-9-9z" transform="rotate(-90 18 18)" fill="#000"/></svg>
-        </button>
-      </div>
-    </div>
 
   </div><!-- tab-content -->
 
@@ -469,10 +482,6 @@
     <button class="tab-btn" id="tabbar-coach" onclick="switchTab('coach')">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12zM7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
       Coach
-    </button>
-    <button class="tab-btn" id="tabbar-analyze" onclick="switchTab('analyze')">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
-      Analyze
     </button>
   </nav>
 </div>
@@ -613,7 +622,7 @@ function rdy_color(sc) { if(!sc) return 'var(--dim)'; if(sc>=80) return 'var(--g
 
 // ── Tab switch ──────────────────────────────────────────
 let active_tab = 'today'
-const TABS = ['today','training','coach','analyze']
+const TABS = ['today','training','coach']
 
 function switchTab(name) {
   TABS.forEach(t => {
@@ -631,7 +640,7 @@ const GEAR_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentC
 const SYNC_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>`
 
 function renderHeader(tab) {
-  const titles = { today:'TODAY', training:'TRAINING', coach:'COACH', analyze:'ANALYZE' }
+  const titles = { today:'TODAY', training:'TRAINING', coach:'COACH' }
   document.getElementById('header-title').textContent = titles[tab]
   const acts = document.getElementById('header-actions')
   if (tab==='today') {
@@ -703,7 +712,7 @@ function renderToday(s) {
     h += `<div class="banner stale">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--orange)" aria-hidden="true"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
       <div><div style="font-size:10px;font-weight:900;letter-spacing:1px;color:var(--orange);text-transform:uppercase">Cached Data</div>
-      <div style="font-size:13px;color:var(--dim)">Garmin hasn’t reported today’s ${x(fl)} yet</div></div>
+      <div style="font-size:13px;color:var(--dim)">Showing yesterday’s ${x(fl)} — auto-syncing. Tap ↺ to refresh now.</div></div>
     </div>`
   }
 
@@ -821,10 +830,14 @@ function renderActs() {
       [[a.hrZ1s,'#4a9eff'],[a.hrZ2s,'#34c759'],[a.hrZ3s,'#ffd60a'],[a.hrZ4s,'#ff9500'],[a.hrZ5s,'#FF1F1F']]
       .filter(z=>z[0]>0).map(z=>`<div class="zone-seg" style="flex:${z[0]};background:${z[1]}"></div>`).join('')
     }</div>` : ''
+    const actDate=(a.startTimeLocal||'').slice(0,10)
     h+=`<div class="act-item">
       <div class="act-hdr">
         <div><div class="act-name">${x(a.name||'Activity')}</div><div class="act-type">${x(tp)}</div></div>
-        <div class="act-date">${fmt_date(a.startTimeLocal)}</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+          <div class="act-date">${fmt_date(a.startTimeLocal)}</div>
+          ${actDate?`<button class="abtn ghost" style="padding:4px 10px;font-size:10px;min-height:28px;letter-spacing:0.5px" onclick="analyzeActivity('${actDate}')">Analyze</button>`:''}
+        </div>
       </div>
       <div class="act-stats">
         ${a.distance_km?`<div><div class="st-val">${a.distance_km}</div><div class="st-lbl">km</div></div>`:''}
@@ -871,18 +884,59 @@ async function doEval() {
 }
 
 // ── COACH ────────────────────────────────────────────────
-let ct='chat', c_cid=null, c_msgs=[], c_loading=false
+let ct='chat', c_reply_kind='ask', c_cid=null, c_msgs=[], c_loading=false
 
 const SUGS=['How\'s my training load this week?','Am I ready for a hard session today?','What pace should I target for easy runs?','How\'s my HRV trend lately?']
 
 function setCoachType(t) {
   ct=t; c_cid=null; c_msgs=[]
+  c_reply_kind = (t === 'chat' || t === 'history') ? 'ask' : 'coach'
   document.querySelectorAll('#coach-chip-row .chip').forEach(c=>c.classList.toggle('active',c.dataset.ct===t))
+  if (t === 'history') { updateUploadBar(); loadCoachHistory(); return }
   renderCoach(); updateUploadBar()
+}
+
+async function loadCoachHistory() {
+  const area = document.getElementById('coach-msgs')
+  area.innerHTML = `<div class="loading-card" style="margin:12px 16px"><div class="spinner"></div><div class="loading-lbl">Loading History</div></div>`
+  try {
+    const data = await api('GET', '/conversations')
+    const convs = (data.conversations||[]).filter(c=>c.kind==='coach'||c.kind==='ask')
+    if (!convs.length) {
+      area.innerHTML = `<div class="empty"><div class="empty-title">No History</div><div class="empty-sub">Past coach and chat sessions will appear here.</div></div>`
+      return
+    }
+    area.innerHTML = `<div class="pad gap">` + convs.map(c => {
+      const badge = c.kind==='ask' ? 'CHAT' : 'COACH'
+      const dt = c.updated_at ? new Date(c.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : ''
+      return `<div class="conv-item" onclick="openCoachConversation(${c.id})">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="conv-badge">${badge}</span>
+          <span style="font-size:11px;color:var(--dim)">${dt}</span>
+        </div>
+        <div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x(c.title||'Session')}</div>
+        ${c.preview?`<div style="font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x(c.preview)}</div>`:''}
+      </div>`
+    }).join('') + `</div>`
+  } catch(e) { area.innerHTML = `<div style="padding:16px">${errBanner(e.message)}</div>` }
+}
+
+async function openCoachConversation(id) {
+  const area = document.getElementById('coach-msgs')
+  area.innerHTML = `<div class="loading-card" style="margin:12px 16px"><div class="spinner"></div><div class="loading-lbl">Loading</div></div>`
+  try {
+    const conv = await api('GET', `/conversations/${id}`)
+    c_cid = conv.id
+    c_reply_kind = conv.kind === 'ask' ? 'ask' : 'coach'
+    ct = conv.kind === 'ask' ? 'chat' : 'history'  // keep 'history' chip active for coach kind
+    c_msgs = (conv.messages||[]).map(m=>({r:m.role==='user'?'user':'assistant',t:m.content}))
+    renderCoach(); updateUploadBar()
+  } catch(e) { area.innerHTML = `<div style="padding:16px">${errBanner(e.message)}</div>` }
 }
 
 function renderCoach() {
   const area=document.getElementById('coach-msgs')
+  if (ct === 'history' && !c_msgs.length) return  // handled by loadCoachHistory
   if (!c_msgs.length) {
     if (ct==='chat') {
       area.innerHTML=`
@@ -907,13 +961,13 @@ function renderCoach() {
   }
   area.innerHTML=c_msgs.map(m=>`<div class="bwrap"><div class="bubble ${m.r}">${m.r==='assistant'?md(m.t):x(m.t)}</div></div>`).join('')
   if (c_loading) area.innerHTML+=`<div class="bwrap"><div class="typing" aria-label="Coach is typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`
-  if (ct!=='chat'&&!c_loading) area.innerHTML+=`<div style="padding:12px 16px"><button class="abtn full" onclick="getCoaching()">Re-generate</button></div>`
+  if (ct!=='chat'&&ct!=='history'&&!c_loading) area.innerHTML+=`<div style="padding:12px 16px"><button class="abtn full" onclick="getCoaching()">Re-generate</button></div>`
   area.scrollTop=area.scrollHeight
 }
 
 function updateUploadBar() {
   const bar=document.getElementById('upload-bar')
-  if (ct==='chat'||!c_msgs.length) { bar.innerHTML=''; return }
+  if (ct==='chat'||ct==='history'||!c_msgs.length) { bar.innerHTML=''; return }
   bar.innerHTML=`<button class="upload-btn" id="ubtn" onclick="uploadWorkouts()">↑ UPLOAD TO GARMIN</button>`
 }
 
@@ -923,6 +977,7 @@ async function getCoaching() {
   try {
     const d=await api('POST','/coach',{type:ct,upload:false})
     c_cid=d.conversation_id; c_msgs=[{r:'assistant',t:d.brief}]
+    c_reply_kind='coach'
   } catch(e) { c_msgs=[{r:'assistant',t:'Error: '+e.message}] }
   finally { c_loading=false; renderCoach(); updateUploadBar() }
 }
@@ -951,7 +1006,7 @@ async function coachSug(t) { await cSendMsg(t) }
 async function cSendMsg(text) {
   c_msgs.push({r:'user',t:text}); c_loading=true; renderCoach()
   try {
-    const d=await api('POST','/chat',{message:text,conversation_id:c_cid,kind:ct==='chat'?'ask':'coach'})
+    const d=await api('POST','/chat',{message:text,conversation_id:c_cid,kind:c_reply_kind})
     c_cid=d.conversation_id; c_msgs.push({r:'assistant',t:d.message.content})
   } catch(e) { c_msgs.push({r:'assistant',t:'Error: '+e.message}) }
   finally { c_loading=false; renderCoach() }
@@ -959,20 +1014,62 @@ async function cSendMsg(text) {
 function ckd(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();coachSend()} }
 
 // ── ANALYZE ──────────────────────────────────────────────
-let ap=null, a_cid=null, a_msgs=[], a_loading=false
+let ap=null, ap_override=null, a_cid=null, a_msgs=[], a_loading=false
 
 function setAP(p) {
-  ap=p
+  ap_override=null; ap=p
   document.querySelectorAll('#analyze-chip-row .chip').forEach(c=>c.classList.toggle('active',c.dataset.p===p))
   const cr=document.getElementById('analyze-custom-row')
-  cr.style.display = p==='custom'?'flex':'none'
+  cr.style.display = (p==='custom')?'flex':'none'
+  const rb=document.getElementById('analyze-run-btn')
+  if(rb) rb.style.display = (p==='history')?'none':''
+  const fu=document.getElementById('analyze-followup')
+  if(fu && p==='history') fu.style.display='none'
   if(p==='custom'){
     const t=new Date().toISOString().slice(0,10), w=new Date(Date.now()-7*864e5).toISOString().slice(0,10)
     document.getElementById('a-start').value=w; document.getElementById('a-end').value=t
   }
+  if(p==='history') { a_msgs=[]; renderAnalyze(); loadAnalyzeHistory() }
+}
+
+async function loadAnalyzeHistory() {
+  const area=document.getElementById('analyze-msgs')
+  area.innerHTML=`<div class="loading-card" style="margin:0 0 8px"><div class="spinner"></div><div class="loading-lbl">Loading History</div></div>`
+  try {
+    const data=await api('GET','/conversations?kind=analyze')
+    const convs=(data.conversations||[])
+    if(!convs.length){
+      area.innerHTML=`<div class="empty"><div class="empty-title">No History</div><div class="empty-sub">Past analysis sessions will appear here.</div></div>`
+      return
+    }
+    area.innerHTML=convs.map(c=>{
+      const dt=c.updated_at?new Date(c.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}):''
+      return `<div class="conv-item" onclick="openAnalyzeConversation(${c.id})">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="conv-badge">ANALYSIS</span>
+          <span style="font-size:11px;color:var(--dim)">${dt}</span>
+        </div>
+        <div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x(c.title||'Analysis')}</div>
+      </div>`
+    }).join('')
+  } catch(e) { area.innerHTML=errBanner(e.message) }
+}
+
+async function openAnalyzeConversation(id) {
+  const area=document.getElementById('analyze-msgs')
+  area.innerHTML=`<div class="loading-card" style="margin:0 0 8px"><div class="spinner"></div><div class="loading-lbl">Loading</div></div>`
+  try {
+    const conv=await api('GET',`/conversations/${id}`)
+    a_cid=conv.id
+    a_msgs=(conv.messages||[]).map(m=>({r:m.role==='user'?'user':'assistant',t:m.content}))
+    renderAnalyze()
+    const fu=document.getElementById('analyze-followup')
+    if(fu){ fu.style.display='flex' }
+  } catch(e) { area.innerHTML=errBanner(e.message) }
 }
 
 function buildPP() {
+  if(ap_override) return ap_override
   if(!ap) return null
   if(ap==='today') return new Date().toISOString().slice(0,10)
   if(ap==='custom'){
@@ -982,15 +1079,24 @@ function buildPP() {
   return ap
 }
 
+function analyzeActivity(date) {
+  ap_override=`${date}:${date}`
+  document.querySelectorAll('#analyze-chip-row .chip').forEach(c=>c.classList.remove('active'))
+  document.getElementById('analyze-custom-row').style.display='none'
+  runAnalyze()
+  document.getElementById('analyze-section').scrollIntoView({behavior:'smooth'})
+}
+
 async function runAnalyze() {
   const pp=buildPP(); if(!pp){toast('Select a period first');return}
   a_loading=true; a_cid=null; a_msgs=[]
-  document.getElementById('analyze-ibar').style.display='none'
+  const fu=document.getElementById('analyze-followup')
+  if(fu) fu.style.display='none'
   renderAnalyze()
   try {
     const d=await api('POST','/analyze',{period:pp})
     a_cid=d.conversation_id; a_msgs=[{r:'assistant',t:d.report}]
-    document.getElementById('analyze-ibar').style.display='flex'
+    if(fu){ fu.style.display='flex'; document.getElementById('analyze-msgs').scrollIntoView({behavior:'smooth'}) }
   } catch(e) { a_msgs=[{r:'assistant',t:'Error: '+e.message}] }
   finally { a_loading=false; renderAnalyze() }
 }
@@ -1003,7 +1109,6 @@ function renderAnalyze() {
   }
   area.innerHTML=a_msgs.map(m=>`<div class="bwrap"><div class="bubble ${m.r}">${m.r==='assistant'?md(m.t):x(m.t)}</div></div>`).join('')
   if(a_loading) area.innerHTML+=`<div class="bwrap"><div class="typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`
-  area.scrollTop=area.scrollHeight
 }
 
 async function analyzeSend() {
