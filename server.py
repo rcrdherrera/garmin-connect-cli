@@ -649,6 +649,12 @@ Apply Kiviniemi HRV protocol, Gabbett ACWR, Seiler polarization, Heiderscheit ca
 
 Be direct and specific. Use clear structure when helpful. No emojis."""
     # kind == "ask" (default)
+    catalog_section = f"""
+
+GARMIN EXERCISE CATALOG — when suggesting strength exercises, use ONLY these exact category/exercise_name keys. Garmin validates every key server-side and rejects workouts with any mismatch.
+
+{_catalog_str}""" if _catalog_str else ""
+
     return f"""You are a world-class running coach and sports scientist. Athlete context:
 
 {_load_athlete_context()}
@@ -658,6 +664,8 @@ Today: {today}{live_context}
 You have deep knowledge of evidence-based training principles (Seiler polarization, Lydiard, Maffetone),
 injury prevention and return-to-run protocols, HRV interpretation (Kiviniemi protocol), running
 biomechanics, nutrition for endurance athletes, and periodization.
+
+GARMIN WORKOUT UPLOAD — The app's Coach tab (Run / Strength / Lower Body / Upper Body chips) can design and upload workouts directly to Garmin Connect via the "Upload to Garmin" button. When the athlete asks about uploading, tell them to use those chips + the upload button. You cannot trigger uploads from chat, but the button handles it automatically.{catalog_section}
 
 Be direct and practical — this is a coach-athlete conversation, not a textbook.
 Keep answers focused and actionable. Use clear structure when helpful."""
