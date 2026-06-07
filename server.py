@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import json
 import math
 import os
@@ -736,13 +737,6 @@ def get_status(local_date: str | None = Query(default=None)):
 
     errors: list[str] = []
 
-    def _try(key: str, fn):
-        try:
-            result[key] = fn()
-        except Exception as exc:
-            result[key] = None
-            errors.append(f"{key}: {type(exc).__name__}: {exc}")
-
     def _body_battery():
         bb = g.get_body_battery(today)
         if bb and isinstance(bb, list):
@@ -790,13 +784,30 @@ def get_status(local_date: str | None = Query(default=None)):
             "rem_h": round((dto.get("remSleepSeconds") or 0) / 3600, 1),
         }
 
-    _try("body_battery", _body_battery)
-    _try("hrv", _hrv)
-    _try("readiness", _readiness)
-    _try("training_status", lambda: (g.get_training_status(today) or {}).get("trainingStatusPhrase"))
-    _try("sleep", _sleep)
-    _try("rhr", lambda: (g.get_heart_rates(today) or {}).get("restingHeartRate"))
-    _try("stress", lambda: (g.get_stress_data(today) or {}).get("overallStressLevel"))
+    _live_tasks: dict[str, Any] = {
+        "body_battery": _body_battery,
+        "hrv": _hrv,
+        "readiness": _readiness,
+        "training_status": lambda: (g.get_training_status(today) or {}).get("trainingStatusPhrase"),
+        "sleep": _sleep,
+        "rhr": lambda: (g.get_heart_rates(today) or {}).get("restingHeartRate"),
+        "stress": lambda: (g.get_stress_data(today) or {}).get("overallStressLevel"),
+    }
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(_live_tasks)) as _pool:
+        _futs = {_pool.submit(fn): key for key, fn in _live_tasks.items()}
+        _done, _pending = concurrent.futures.wait(_futs, timeout=10)
+        for _fut in _done:
+            _key = _futs[_fut]
+            try:
+                result[_key] = _fut.result()
+            except Exception as exc:
+                result[_key] = None
+                errors.append(f"{_key}: {type(exc).__name__}: {exc}")
+        for _fut in _pending:
+            _key = _futs[_fut]
+            result[_key] = None
+            errors.append(f"{_key}: TimeoutError: Garmin API did not respond in 10s")
+            _fut.cancel()
 
     # DB fallback — backfill any field still None / empty from latest SQLite rows.
     # Only flag as stale when the DB row is from a previous day; today's DB data
