@@ -17,9 +17,7 @@ User invoked with: `$ARGUMENTS`
 Fire all of these at once — memory reads and API calls are fully independent:
 
 ```
-Read: C:\Users\ricar\.claude\projects\C--garmin-connect-cli\memory\training_history.md
-Read: C:\Users\ricar\.claude\projects\C--garmin-connect-cli\memory\hr_zones.md
-Read: C:\Users\ricar\.claude\projects\C--garmin-connect-cli\memory\race_goals_2026.md
+Read: ~/.config/garmin-connect-cli/athlete_context.md
 ```
 
 ```bash
@@ -152,7 +150,7 @@ Then apply the matching phase from `race_goals_2026.md`. Summary:
 
 ## Step 4 — Build the Workouts (Python)
 
-Write a Python script at `C:\garmin-connect-cli\upload_session.py` using the patterns below. Then run it.
+Write a Python script at `~/GitHub/garmin-connect-cli/upload_session.py` using the patterns below. Then run it.
 
 ### Authentication
 
@@ -161,7 +159,7 @@ Do NOT use `garminconnect.Garmin()` directly; its schedule response does not par
 
 ```python
 import sys
-sys.path.insert(0, r"C:\garmin-connect-cli\src")
+sys.path.insert(0, str(Path.home() / "GitHub" / "garmin-connect-cli" / "src"))
 from garmin_connect_cli.client import GarminClient
 from garmin_connect_cli.config import Config
 

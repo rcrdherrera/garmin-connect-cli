@@ -37,9 +37,8 @@ from create_workouts import (
 # ── Config ────────────────────────────────────────────────────────────────────
 TOKEN_DIR    = Path.home() / ".config" / "garmin-connect-cli" / "tokens"
 DB_PATH      = Path.home() / ".config" / "garmin-connect-cli" / "garmin.db"
-PLAN_PATH    = Path.home() / ".config" / "garmin-connect-cli" / "training_plan.json"
-CONTEXT_FILE = Path.home() / ".config" / "garmin-connect-cli" / "athlete_context.md"
 CATALOG_PATH = REPO_ROOT / "data" / "garmin_exercises.json"
+SEED_FILE    = REPO_ROOT / "data" / "athlete_context_seed.md"
 SERVER_TOKEN = os.environ.get("COACH_SERVER_TOKEN", "")
 PORT         = int(os.environ.get("COACH_PORT", "8765"))
 
@@ -70,28 +69,51 @@ def _load_exercise_catalog() -> tuple[dict[str, dict], str]:
 
 _exercise_catalog, _catalog_str = _load_exercise_catalog()
 
-# ── Athlete context (hot-reloaded on every request) ───────────────────────────
+# ── Athlete context (DB-backed, 30-second TTL cache) ──────────────────────────
 _context_cache: tuple[float, str] | None = None
+_CONTEXT_TTL = 30.0
 
 
 def _load_athlete_context() -> str:
     global _context_cache
-    if not CONTEXT_FILE.exists():
-        return ""
-    mtime = CONTEXT_FILE.stat().st_mtime
-    if _context_cache is not None and _context_cache[0] == mtime:
+    now = datetime.utcnow().timestamp()
+    if _context_cache is not None and now - _context_cache[0] < _CONTEXT_TTL:
         return _context_cache[1]
-    text = CONTEXT_FILE.read_text(encoding="utf-8")
-    _context_cache = (mtime, text)
+    try:
+        conn = _open_db()
+        rows = conn.execute("SELECT content FROM context_entries ORDER BY id").fetchall()
+        conn.close()
+        text = "\n\n".join(r[0] for r in rows)
+    except Exception:
+        text = ""
+    _context_cache = (now, text)
     return text
 
 
-def _append_to_context(fact: str) -> None:
-    CONTEXT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d")
-    entry = f"\n\n<!-- {timestamp} -->\n{fact.strip()}"
-    with CONTEXT_FILE.open("a", encoding="utf-8") as f:
-        f.write(entry)
+def _append_to_context(fact: str, source: str = "user") -> None:
+    global _context_cache
+    conn = _open_db()
+    conn.execute(
+        "INSERT INTO context_entries (created_at, source, content) VALUES (?, ?, ?)",
+        (datetime.utcnow().isoformat(), source, fact.strip()),
+    )
+    conn.commit()
+    conn.close()
+    _context_cache = None
+
+
+def _seed_context_if_empty() -> None:
+    conn = _open_db()
+    count = conn.execute("SELECT COUNT(*) FROM context_entries").fetchone()[0]
+    if count == 0 and SEED_FILE.exists():
+        seed = SEED_FILE.read_text(encoding="utf-8").strip()
+        conn.execute(
+            "INSERT INTO context_entries (created_at, source, content) VALUES (?, ?, ?)",
+            (datetime.utcnow().isoformat(), "seed", seed),
+        )
+        conn.commit()
+        print(f"[context] Seeded athlete context from {SEED_FILE.name}")
+    conn.close()
 
 
 # Tool Claude can call during chat to persist facts
@@ -156,8 +178,8 @@ async def _today_data_poller():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _ensure_conversation_tables()
-    print("Conversation tables ready")
+    _ensure_tables()
+    print("DB tables ready")
     poller = asyncio.create_task(_today_data_poller())
     yield
     poller.cancel()
@@ -388,8 +410,8 @@ def _tool_input_to_garmin(tool_input: dict) -> dict:
 
 
 # ── Conversation table bootstrap (idempotent) ─────────────────────────────────
-def _ensure_conversation_tables() -> None:
-    """Create conversations/messages tables if they don't exist yet."""
+def _ensure_tables() -> None:
+    """Create all server-managed tables if they don't exist yet."""
     conn = _open_db()
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS conversations (
@@ -410,9 +432,22 @@ def _ensure_conversation_tables() -> None:
             ON messages (conversation_id, id);
         CREATE INDEX IF NOT EXISTS idx_conversations_kind
             ON conversations (kind, updated_at);
+        CREATE TABLE IF NOT EXISTS context_entries (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            source     TEXT NOT NULL DEFAULT 'user',
+            content    TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS training_plan (
+            id         INTEGER PRIMARY KEY,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            plan_json  TEXT NOT NULL
+        );
     """)
     conn.commit()
     conn.close()
+    _seed_context_if_empty()
 
 
 # ── Conversation DB helpers ───────────────────────────────────────────────────
@@ -874,10 +909,30 @@ def get_activities(limit: int = 20):
 
 @app.get("/plan", dependencies=[AUTH])
 def get_plan():
-    """Current training plan (training_plan.json)."""
-    if not PLAN_PATH.exists():
+    """Current training plan."""
+    conn = _open_db()
+    row = conn.execute("SELECT plan_json FROM training_plan WHERE id = 1").fetchone()
+    conn.close()
+    if not row:
         return {"plan": None}
-    return json.loads(PLAN_PATH.read_text(encoding="utf-8"))
+    return json.loads(row[0])
+
+
+# ── GET /context ──────────────────────────────────────────────────────────────
+
+@app.get("/context", dependencies=[AUTH])
+def get_context():
+    """Full athlete context: all entries in insertion order."""
+    conn = _open_db()
+    rows = conn.execute(
+        "SELECT id, created_at, source, content FROM context_entries ORDER BY id"
+    ).fetchall()
+    conn.close()
+    entries = [dict(r) for r in rows]
+    return {
+        "entries": entries,
+        "full_text": "\n\n".join(e["content"] for e in entries),
+    }
 
 
 # ── GET /trends ──────────────────────────────────────────────────────────────
@@ -1142,7 +1197,7 @@ def _upload_and_schedule(g: Garmin, sessions: list[tuple[dict, date]]) -> list[d
 
 
 def _save_training_plan(uploaded: list[dict], today: date) -> None:
-    """Write training_plan.json with the uploaded session schedule."""
+    """Upsert the training plan into the DB."""
     week_start = today - timedelta(days=today.weekday())
     plan = {
         "plan_version": 1,
@@ -1162,7 +1217,17 @@ def _save_training_plan(uploaded: list[dict], today: date) -> None:
             for w in uploaded
         ],
     }
-    PLAN_PATH.write_text(json.dumps(plan, indent=2))
+    now = datetime.utcnow().isoformat()
+    conn = _open_db()
+    conn.execute(
+        """INSERT INTO training_plan (id, created_at, updated_at, plan_json)
+           VALUES (1, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at,
+                                         plan_json  = excluded.plan_json""",
+        (now, now, json.dumps(plan)),
+    )
+    conn.commit()
+    conn.close()
 
 
 @app.post("/coach", dependencies=[AUTH])
@@ -1411,7 +1476,10 @@ def evaluate(req: EvaluateRequest):
     except Exception:
         pass
 
-    plan = json.loads(PLAN_PATH.read_text(encoding="utf-8")) if PLAN_PATH.exists() else None
+    _plan_conn = _open_db()
+    _plan_row = _plan_conn.execute("SELECT plan_json FROM training_plan WHERE id = 1").fetchone()
+    _plan_conn.close()
+    plan = json.loads(_plan_row[0]) if _plan_row else None
     metrics = {
         "acwr": acwr,
         "ctl": round(ctl, 1),
@@ -1597,9 +1665,9 @@ class RememberRequest(BaseModel):
 
 @app.post("/remember", dependencies=[AUTH])
 def remember(req: RememberRequest):
-    """Append a persistent fact to athlete_context.md (hot-reloaded on every request)."""
+    """Persist a fact to the athlete context DB (available in all future requests)."""
     _append_to_context(req.note)
-    return {"saved": req.note.strip(), "file": str(CONTEXT_FILE)}
+    return {"saved": req.note.strip()}
 
 
 if __name__ == "__main__":

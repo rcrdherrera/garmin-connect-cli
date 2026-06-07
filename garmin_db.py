@@ -135,6 +135,20 @@ CREATE INDEX IF NOT EXISTS idx_messages_conv
     ON messages (conversation_id, id);
 CREATE INDEX IF NOT EXISTS idx_conversations_kind
     ON conversations (kind, updated_at);
+
+CREATE TABLE IF NOT EXISTS context_entries (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    source     TEXT NOT NULL DEFAULT 'user',
+    content    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS training_plan (
+    id         INTEGER PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    plan_json  TEXT NOT NULL
+);
 """
 
 # ─── DB helpers ──────────────────────────────────────────────────────────────
@@ -515,6 +529,7 @@ def cmd_stats(args):
         ("health_daily",  "date"),
         ("training_daily","date"),
         ("weight",        "date"),
+        ("context_entries", "created_at"),
     ]:
         row = conn.execute(
             f"SELECT COUNT(*), MIN({date_col}), MAX({date_col}) FROM {tbl}"
