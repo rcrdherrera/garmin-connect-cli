@@ -156,25 +156,27 @@ async def _today_data_poller():
     print("[poller] Started — syncing now, then every 5 min (2 min during 6–9am)")
 
     while True:
-        today = date.today().isoformat()
+        # Sync since yesterday (UTC) so data is captured regardless of the
+        # user's local timezone offset vs the server's UTC clock.
+        since = (date.today() - timedelta(days=1)).isoformat()
 
-        print(f"[poller] {today}: syncing from Garmin...")
+        print(f"[poller] syncing from Garmin since {since}...")
         try:
             script = REPO_ROOT / "garmin_db.py"
             result = await asyncio.to_thread(
                 subprocess.run,
-                [sys.executable, str(script), "sync", "--since", today],
+                [sys.executable, str(script), "sync", "--since", since],
                 capture_output=True,
                 text=True,
                 timeout=120,
                 cwd=str(REPO_ROOT),
             )
             if result.returncode == 0:
-                print(f"[poller] {today}: sync OK")
+                print(f"[poller] sync OK (since {since})")
             else:
-                print(f"[poller] {today}: sync failed (exit {result.returncode}): {result.stderr[:200]}")
+                print(f"[poller] sync failed (exit {result.returncode}): {result.stderr[:200]}")
         except Exception as exc:
-            print(f"[poller] {today}: sync error: {exc}")
+            print(f"[poller] sync error: {exc}")
 
         hour = datetime.now().hour
         interval = 120 if 6 <= hour <= 9 else 300

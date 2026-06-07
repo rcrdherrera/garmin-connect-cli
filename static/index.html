@@ -688,12 +688,17 @@ function saveSettings() {
 // ── TODAY ────────────────────────────────────────────────
 let today_loaded = false
 
+function localDateStr() {
+  const d = new Date()
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+}
+
 async function loadToday() {
   today_loaded = true
   const b = document.getElementById('today-body')
   b.innerHTML = `<div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Fetching Garmin Data</div></div>`
   try {
-    const s = await api('GET','/status')
+    const s = await api('GET', '/status?local_date=' + localDateStr())
     renderToday(s)
   } catch(e) {
     document.getElementById('today-body').innerHTML = errBanner(e.message)
