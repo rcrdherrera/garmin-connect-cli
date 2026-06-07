@@ -102,9 +102,9 @@
 
     /* ── Cards ───────────────────────────────────────────────── */
     .card {
-      background: var(--card); border: 2px solid var(--border);
-      border-radius: 2px; padding: 14px;
-      box-shadow: 2px 2px 0 rgba(0,0,0,0.5);
+      background: var(--card); border: 1.5px solid var(--border);
+      border-radius: 16px; padding: 14px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.45);
     }
 
     /* ── Metric ──────────────────────────────────────────────── */
@@ -119,9 +119,9 @@
 
     /* ── Readiness ring ──────────────────────────────────────── */
     .readiness-card {
-      background: var(--card); border: 2px solid var(--border); border-radius: 2px;
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 20px;
       padding: 22px 18px; display: flex; align-items: center; gap: 22px;
-      box-shadow: 3px 3px 0 rgba(0,0,0,0.55);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.55);
     }
     .ring-svg   { width: 100px; height: 100px; flex-shrink: 0; }
     .ring-track { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 9; }
@@ -131,7 +131,7 @@
     .readiness-feedback { font-size: 13px; color: var(--dim); margin-top: 6px; line-height: 1.5; }
 
     /* ── HRV badge ───────────────────────────────────────────── */
-    .hrv-badge { padding: 3px 8px; border-radius: 2px; font-size: 9px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase; }
+    .hrv-badge { padding: 3px 10px; border-radius: 20px; font-size: 9px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase; }
     .hrv-badge.BALANCED   { background: rgba(52,199,89,0.12); border: 1px solid rgba(52,199,89,0.3); color: var(--green); }
     .hrv-badge.UNBALANCED { background: rgba(255,149,0,0.12); border: 1px solid rgba(255,149,0,0.3); color: var(--orange); }
     .hrv-badge.LOW        { background: rgba(255,31,31,0.12); border: 1px solid rgba(255,31,31,0.3); color: var(--red); }
@@ -142,9 +142,9 @@
     .sec-lbl  { font-size: 9px; font-weight: 900; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
 
     /* ── Banners ─────────────────────────────────────────────── */
-    .banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 2px; }
-    .banner.stale { background: rgba(255,133,0,0.06); border: 2px solid rgba(255,133,0,0.25); }
-    .banner.error { background: var(--card); border: 2px solid rgba(232,0,11,0.35); }
+    .banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; }
+    .banner.stale { background: rgba(255,133,0,0.06); border: 1.5px solid rgba(255,133,0,0.25); }
+    .banner.error { background: var(--card); border: 1.5px solid rgba(232,0,11,0.35); }
     .banner-bar   { width: 3px; align-self: stretch; border-radius: 1px; flex-shrink: 0; background: var(--red); }
 
     /* ── Filter bar (Training tab) ───────────────────────────── */
@@ -154,7 +154,7 @@
     }
     .filter-row { display: flex; gap: 5px; align-items: center; }
     .fchip {
-      padding: 0 11px; height: 30px; border: 2px solid var(--border); border-radius: 2px;
+      padding: 0 14px; height: 30px; border: 1.5px solid var(--border); border-radius: 20px;
       background: transparent; color: var(--dim);
       font-size: 10px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;
       cursor: pointer; white-space: nowrap; transition: border-color .1s, color .1s, background .1s;
@@ -169,9 +169,9 @@
 
     /* ── Chart ───────────────────────────────────────────────── */
     .chart-wrap {
-      background: var(--card); border: 2px solid var(--border); border-radius: 2px;
-      padding: 14px 14px 10px; overflow: hidden;
-      box-shadow: 2px 2px 0 rgba(0,0,0,0.45);
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 16px;
+      padding: 16px 16px 12px; overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.45);
     }
     .chart-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
     .chart-ttl { font-size: 9px; font-weight: 900; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
@@ -182,7 +182,7 @@
     /* ── Training stats strip ────────────────────────────────── */
     .stats-strip {
       display: flex; gap: 0; background: var(--card); border: 1.5px solid var(--border);
-      border-radius: 4px; overflow: hidden;
+      border-radius: 14px; overflow: hidden;
     }
     .stat-cell {
       flex: 1; padding: 10px 12px; border-right: 1.5px solid var(--border);
@@ -194,9 +194,9 @@
 
     /* ── Activity card ───────────────────────────────────────── */
     .act-item {
-      background: var(--card); border: 2px solid var(--border); border-radius: 2px;
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 16px;
       padding: 14px; cursor: pointer; transition: border-color .12s;
-      box-shadow: 2px 2px 0 rgba(0,0,0,0.45);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.4);
     }
     .act-item:active { border-color: var(--border-s); }
     .act-hdr  { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
@@ -211,8 +211,8 @@
 
     /* ── Analyze button on act card ──────────────────────────── */
     .analyze-btn {
-      padding: 4px 10px; height: 26px; background: transparent;
-      border: 2px solid var(--border); border-radius: 2px;
+      padding: 4px 12px; height: 26px; background: transparent;
+      border: 1.5px solid var(--border); border-radius: 20px;
       color: var(--dim); font-size: 9px; font-weight: 900; letter-spacing: 0.8px;
       text-transform: uppercase; cursor: pointer; white-space: nowrap;
       transition: border-color .1s, color .1s;
@@ -234,7 +234,7 @@
     .detail-act-type { font-size: 9px; font-weight: 900; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; margin-top: 3px; }
     .detail-stats-grid {
       display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px;
-      background: var(--border); border: 2px solid var(--border); border-radius: 2px;
+      background: var(--border); border: 1.5px solid var(--border); border-radius: 14px;
       overflow: hidden;
     }
     .detail-stat { background: var(--card); padding: 12px 14px; }
@@ -249,7 +249,7 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .loading-card {
-      background: var(--card); border: 2px solid var(--border); border-radius: 2px;
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 16px;
       padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 12px;
     }
     .loading-lbl { font-size: 10px; font-weight: 900; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; text-align: center; }
@@ -265,10 +265,10 @@
     .bwrap { padding: 3px 16px; }
     .bubble {
       display: inline-block; max-width: calc(100% - 60px);
-      padding: 10px 14px; font-size: 15px; line-height: 1.55; border-radius: 2px; word-break: break-word;
+      padding: 10px 14px; font-size: 15px; line-height: 1.55; border-radius: 18px; word-break: break-word;
     }
-    .bubble.user      { background: var(--red); color: #fff; border-radius: 2px 2px 0 2px; margin-left: auto; display: block; box-shadow: 2px 2px 0 rgba(0,0,0,0.35); }
-    .bubble.assistant { background: var(--card2); border: 2px solid var(--border); border-radius: 2px 2px 2px 0; }
+    .bubble.user      { background: var(--red); color: #fff; border-radius: 18px 18px 4px 18px; margin-left: auto; display: block; box-shadow: 0 2px 12px rgba(232,0,11,0.35); }
+    .bubble.assistant { background: var(--card2); border: 1.5px solid var(--border); border-radius: 4px 18px 18px 18px; }
     .bubble .mh  { font-size: 9px; font-weight: 900; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; display: flex; align-items: center; gap: 6px; margin: 10px 0 3px; }
     .bubble .mh::before { content: ''; width: 3px; height: 11px; background: var(--red); border-radius: 1px; flex-shrink: 0; }
     .bubble .mh:first-child { margin-top: 0; }
@@ -281,7 +281,7 @@
     .bubble code   { background: rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 3px; font-family: 'SF Mono', monospace; font-size: 13px; }
 
     /* Typing dots */
-    .typing { display: inline-flex; gap: 5px; padding: 12px 14px; background: var(--card2); border: 2px solid var(--border); border-radius: 2px 2px 2px 0; }
+    .typing { display: inline-flex; gap: 5px; padding: 12px 14px; background: var(--card2); border: 1.5px solid var(--border); border-radius: 4px 18px 18px 18px; }
     .tdot   { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.4); }
     @media (prefers-reduced-motion: no-preference) {
       .tdot { animation: tbounce 1.2s ease-in-out infinite; }
@@ -297,8 +297,8 @@
       background: var(--bg); display: flex; align-items: flex-end; gap: 8px;
     }
     .ifield {
-      flex: 1; background: var(--card2); border: 2px solid var(--border); border-radius: 2px;
-      padding: 10px 14px; color: var(--text); font-size: 15px; font-family: inherit;
+      flex: 1; background: var(--card2); border: 1.5px solid var(--border); border-radius: 20px;
+      padding: 10px 16px; color: var(--text); font-size: 15px; font-family: inherit;
       resize: none; outline: none; max-height: 120px; overflow-y: auto; line-height: 1.4;
     }
     .ifield::placeholder { color: var(--muted); }
@@ -312,19 +312,19 @@
 
     /* ── Action button ───────────────────────────────────────── */
     .abtn {
-      padding: 13px 20px; min-height: 46px; background: var(--red); border: none; border-radius: 2px;
+      padding: 13px 20px; min-height: 46px; background: var(--red); border: none; border-radius: 14px;
       color: #fff; font-size: 11px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase;
       cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
-      box-shadow: 3px 3px 0 rgba(0,0,0,0.5);
+      box-shadow: 0 4px 16px rgba(232,0,11,0.4);
       transition: transform .1s, box-shadow .1s;
     }
-    .abtn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 rgba(0,0,0,0.5); }
+    .abtn:active { transform: scale(0.98); box-shadow: 0 1px 6px rgba(232,0,11,0.3); }
     .abtn:disabled { opacity: 0.45; pointer-events: none; }
     .abtn.full  { width: 100%; }
-    .abtn.ghost { background: transparent; border: 2px solid var(--border); color: var(--dim); box-shadow: none; }
+    .abtn.ghost { background: transparent; border: 1.5px solid var(--border); color: var(--dim); box-shadow: none; }
 
     /* ── Plan card ───────────────────────────────────────────── */
-    .plan-row { background: var(--card); border: 2px solid var(--border); border-radius: 2px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+    .plan-row { background: var(--card); border: 1.5px solid var(--border); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
 
     /* ── Upload bar ──────────────────────────────────────────── */
     .upload-btn {
@@ -340,7 +340,7 @@
     /* ── Suggestions ─────────────────────────────────────────── */
     .sug-btn {
       width: 100%; min-height: 48px; padding: 12px 14px; background: var(--card);
-      border: 2px solid var(--border); border-radius: 2px;
+      border: 1.5px solid var(--border); border-radius: 14px;
       text-align: left; display: flex; align-items: center; justify-content: space-between;
       cursor: pointer; color: rgba(255,255,255,0.75); font-size: 14px; font-family: inherit; gap: 12px;
       transition: border-color .12s;
@@ -350,14 +350,14 @@
 
     /* ── Conv history items ──────────────────────────────────── */
     .conv-item {
-      background: var(--card); border: 2px solid var(--border); border-radius: 2px;
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 14px;
       padding: 12px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 3px;
       transition: border-color .12s;
     }
     .conv-item:active { border-color: var(--border-s); }
     .conv-badge {
       font-size: 8px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;
-      padding: 2px 6px; border-radius: 2px; background: var(--faint); color: var(--dim); white-space: nowrap;
+      padding: 2px 8px; border-radius: 20px; background: var(--faint); color: var(--dim); white-space: nowrap;
       border: 1px solid var(--border);
     }
 
@@ -369,22 +369,22 @@
     }
     .chip-row::-webkit-scrollbar { display: none; }
     .chip {
-      padding: 0 14px; min-height: 34px; border-radius: 2px; flex-shrink: 0;
+      padding: 0 16px; min-height: 34px; border-radius: 20px; flex-shrink: 0;
       font-size: 10px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;
-      border: 2px solid var(--border); background: transparent; color: var(--dim);
+      border: 1.5px solid var(--border); background: transparent; color: var(--dim);
       cursor: pointer; white-space: nowrap; display: flex; align-items: center;
       transition: background .12s, color .12s, border-color .12s;
     }
-    .chip.active { background: var(--red); border-color: var(--red); color: #fff; box-shadow: 2px 2px 0 rgba(0,0,0,0.4); }
+    .chip.active { background: var(--red); border-color: var(--red); color: #fff; box-shadow: 0 2px 10px rgba(232,0,11,0.4); }
 
     /* ── Toast ───────────────────────────────────────────────── */
     #toast {
       position: fixed; bottom: calc(68px + env(safe-area-inset-bottom, 0px)); left: 50%;
       transform: translateX(-50%) translateY(12px); background: var(--card2);
-      border: 2px solid var(--border-s);
+      border: 1.5px solid var(--border-s);
       border-radius: 100px; padding: 9px 18px; font-size: 13px; font-weight: 700;
       opacity: 0; pointer-events: none; white-space: nowrap; z-index: 200;
-      box-shadow: 3px 3px 0 rgba(0,0,0,0.5);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
     }
     @media (prefers-reduced-motion: no-preference) {
       #toast { transition: opacity .2s, transform .2s; }
@@ -413,7 +413,7 @@
     .login-field { display: flex; flex-direction: column; gap: 6px; }
     .login-label { font-size: 9px; font-weight: 900; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
     .login-input {
-      background: var(--card); border: 1.5px solid var(--border); border-radius: 4px;
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 14px;
       padding: 14px 16px; color: var(--text); font-size: 15px; font-family: inherit; outline: none;
       min-height: 52px; width: 100%; transition: border-color .12s;
     }
@@ -427,10 +427,10 @@
     }
     .pw-toggle svg { width: 18px; height: 18px; fill: currentColor; }
     .login-connect {
-      width: 100%; min-height: 52px; background: var(--red); border: none; border-radius: 4px;
+      width: 100%; min-height: 52px; background: var(--red); border: none; border-radius: 14px;
       color: #fff; font-size: 12px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase;
       cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
-      margin-top: 4px; box-shadow: 3px 3px 0 rgba(0,0,0,0.5);
+      margin-top: 4px; box-shadow: 0 4px 20px rgba(232,0,11,0.5);
     }
     .login-connect:disabled { opacity: 0.5; pointer-events: none; }
     .login-error { font-size: 13px; color: #ff6b6b; text-align: center; min-height: 18px; line-height: 1.4; }
@@ -441,7 +441,7 @@
     .modal-overlay.open { display: flex; }
     .modal-sheet {
       width: 100%; background: #161616; border-top: 1.5px solid var(--border);
-      border-radius: 12px 12px 0 0;
+      border-radius: 22px 22px 0 0;
       padding: 16px 20px max(20px, env(safe-area-inset-bottom, 20px));
       display: flex; flex-direction: column; gap: 16px;
     }
@@ -449,7 +449,7 @@
     .modal-ttl    { font-size: 12px; font-weight: 900; letter-spacing: 2.5px; text-transform: uppercase; }
     .field-lbl    { font-size: 9px; font-weight: 900; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; margin-bottom: 6px; }
     .text-input   {
-      width: 100%; background: var(--card2); border: 1.5px solid var(--border); border-radius: 4px;
+      width: 100%; background: var(--card2); border: 1.5px solid var(--border); border-radius: 12px;
       padding: 12px 14px; color: var(--text); font-size: 15px; font-family: inherit; outline: none;
       min-height: 48px; transition: border-color .12s;
     }
@@ -507,6 +507,16 @@
       <div class="pad gap" id="today-body">
         <div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Fetching Garmin Data</div></div>
       </div>
+      <div style="padding: 0 16px 16px; display:flex; flex-direction:column; gap:8px;">
+        <div class="filter-row" id="today-range-row">
+          <button class="fchip active" data-tr="W"  onclick="setTodayRange('W')">W</button>
+          <button class="fchip"        data-tr="M"  onclick="setTodayRange('M')">M</button>
+          <button class="fchip"        data-tr="3M" onclick="setTodayRange('3M')">3M</button>
+          <button class="fchip"        data-tr="6M" onclick="setTodayRange('6M')">6M</button>
+          <button class="fchip"        data-tr="1Y" onclick="setTodayRange('1Y')">1Y</button>
+        </div>
+        <div id="today-chart-area"></div>
+      </div>
     </div>
 
     <!-- TRAINING ─────────────────────────────────────────────── -->
@@ -529,7 +539,6 @@
 
       <!-- List view -->
       <div id="train-list" style="display:flex;flex-direction:column;flex:1">
-        <div class="pad gap" id="chart-area"></div>
         <div class="pad gap" id="training-body">
           <div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Loading Activities</div></div>
         </div>
@@ -822,6 +831,8 @@ function saveSettings() {
 
 // ── TODAY ────────────────────────────────────────────────────
 let today_loaded=false
+let todayRange='W'
+let today_chart_acts=[]
 
 function localDateStr() {
   const d=new Date()
@@ -833,13 +844,30 @@ async function loadToday() {
   const b=document.getElementById('today-body')
   b.innerHTML=`<div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Fetching Garmin Data</div></div>`
   try {
-    const [s, weekRaw] = await Promise.all([
-      api('GET', '/status?local_date='+localDateStr()),
-      api('GET', '/activities?since='+rangeToSince('W')+'&limit=50').catch(()=>[])
-    ])
-    const weekActs=Array.isArray(weekRaw)?weekRaw:(weekRaw?.activities||[])
-    renderToday(s, weekActs)
+    const s=await api('GET', '/status?local_date='+localDateStr())
+    renderToday(s)
   } catch(e) { document.getElementById('today-body').innerHTML=errBanner(e.message) }
+  loadTodayChart()
+}
+
+function setTodayRange(r) {
+  todayRange=r
+  document.querySelectorAll('#today-range-row .fchip[data-tr]').forEach(c=>c.classList.toggle('active',c.dataset.tr===r))
+  loadTodayChart()
+}
+
+async function loadTodayChart() {
+  const area=document.getElementById('today-chart-area')
+  if (!area) return
+  area.innerHTML='<div class="loading-card" style="padding:20px"><div class="spinner sm"></div></div>'
+  try {
+    const since=rangeToSince(todayRange)
+    const limit=todayRange==='1Y'?500:todayRange==='6M'?300:150
+    let acts=await api('GET',`/activities?since=${since}&limit=${limit}`)
+    if (!Array.isArray(acts)) acts=acts.activities||[]
+    today_chart_acts=acts
+    renderChart('today-chart-area',today_chart_acts,todayRange,'running')
+  } catch(e) { area.innerHTML=errBanner(e.message) }
 }
 
 async function syncAndLoad() {
@@ -851,54 +879,7 @@ async function syncAndLoad() {
   today_loaded=false; loadToday()
 }
 
-function todayMileageHTML(weekActs) {
-  const runs=(weekActs||[]).filter(a=>isRun(a.type)&&(a.distance_km||0)>0)
-  if (!runs.length) return ''
-
-  const today=new Date(), todayStr=today.toISOString().slice(0,10)
-  const dow=today.getDay()||7
-  const mon=new Date(today); mon.setDate(today.getDate()-dow+1)
-  const buckets=[]
-  for (let i=0;i<7;i++) {
-    const d=new Date(mon); d.setDate(mon.getDate()+i)
-    if (d>today) break
-    const ds=d.toISOString().slice(0,10)
-    buckets.push({start:ds,label:d.toLocaleDateString('en-US',{weekday:'short'}).slice(0,1)})
-  }
-  buckets.forEach(b=>{
-    b.val=Math.round(runs
-      .filter(a=>a.startTimeLocal&&a.startTimeLocal.slice(0,10)===b.start)
-      .reduce((s,a)=>s+(a.distance_km||0),0)*10)/10
-  })
-  const total=buckets.reduce((s,b)=>s+b.val,0)
-  if (!total) return ''
-
-  const maxVal=Math.max(...buckets.map(b=>b.val),1)
-  const nBars=buckets.length, barH=60, chartH=barH+22
-  let bars='', labels=''
-  buckets.forEach((b,i)=>{
-    const bh=Math.max((b.val/maxVal)*barH,b.val>0?3:0)
-    const isToday=b.start===todayStr
-    const fill=isToday?'var(--red)':'rgba(232,0,11,0.32)'
-    const lx=`${i/(nBars>1?nBars-1:1)*100}%`
-    bars+=`<g transform="translate(${i},0)"><rect x="0.5" y="${barH-bh}" width="0.8" height="${bh}" fill="${fill}" rx="0.1"${isToday?' style="filter:drop-shadow(0 0 4px var(--red-glow))"':''}></rect></g>`
-    labels+=`<text x="${lx}" y="100%" font-size="7" fill="${isToday?'rgba(255,255,255,0.6)':'rgba(255,255,255,0.28)'}" font-weight="900" text-anchor="middle" dominant-baseline="auto" dy="-2">${b.label}</text>`
-  })
-  return `<div class="chart-wrap">
-    <div class="chart-header">
-      <div>
-        <div class="chart-ttl">Distance · This Week</div>
-        <div class="chart-total">${total.toFixed(1)} <span style="font-size:14px;font-weight:400;color:var(--dim)">km</span></div>
-      </div>
-    </div>
-    <svg class="chart-svg" viewBox="0 0 ${nBars} ${chartH}" preserveAspectRatio="none" style="height:${chartH}px">
-      ${bars}
-      <g style="font-family:-apple-system,sans-serif" transform="translate(0,${barH+2})">${labels}</g>
-    </svg>
-  </div>`
-}
-
-function renderToday(s, weekActs=[]) {
+function renderToday(s) {
   let h=''
   if (s._stale_fields?.length) {
     const fl=s._stale_fields.map(f=>f.replace(/_/g,' ')).join(' & ')
@@ -926,8 +907,6 @@ function renderToday(s, weekActs=[]) {
       ${fb?`<div class="readiness-feedback">${x(fb)}</div>`:''}
     </div>
   </div>`
-  const chartH=todayMileageHTML(weekActs)
-  if (chartH) h+=chartH
   const bb=s.body_battery, sl=s.sleep
   if (bb||sl) {
     h+=`<div class="row">`
@@ -995,7 +974,6 @@ async function loadTraining() {
   training_loaded=true
   const b=document.getElementById('training-body')
   b.innerHTML=`<div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Loading Activities</div></div>`
-  document.getElementById('chart-area').innerHTML=''
   const since=rangeToSince(trainRange)
   const limit=trainRange==='1Y'?500:trainRange==='6M'?300:150
   try {
@@ -1025,27 +1003,25 @@ function filteredActs() {
 }
 
 function renderTrainingView() {
-  renderChart()
   renderActsList()
 }
 
 // ── Mileage Chart ────────────────────────────────────────────
-function renderChart() {
-  const area=document.getElementById('chart-area')
-  const showDist=trainType!=='strength'
-  const relevantActs=trainType==='strength'
-    ? all_acts.filter(a=>isStrength(a.type))
-    : all_acts.filter(a=>(a.distance_km||0)>0&&isRun(a.type)||((a.distance_km||0)>0))
+function renderChart(areaId, acts, range, type) {
+  const area=document.getElementById(areaId)
+  if (!area) return
+  const showDist=type!=='strength'
+  const relevantActs=type==='strength'
+    ? acts.filter(a=>isStrength(a.type))
+    : acts.filter(a=>isRun(a.type)&&(a.distance_km||0)>0)
 
   if (!relevantActs.length) { area.innerHTML=''; return }
 
   const today=new Date()
   const todayStr=today.toISOString().slice(0,10)
 
-  // Build time buckets based on range
   const buckets=[]
-  if (trainRange==='W') {
-    // Daily buckets: Mon–today
+  if (range==='W') {
     const mon=new Date(today); mon.setDate(today.getDate()-today.getDay()+1)
     for (let i=0;i<7;i++) {
       const d=new Date(mon); d.setDate(mon.getDate()+i)
@@ -1053,8 +1029,7 @@ function renderChart() {
       const ds=d.toISOString().slice(0,10)
       buckets.push({start:ds,end:ds,label:d.toLocaleDateString('en-US',{weekday:'short'}).slice(0,1)})
     }
-  } else if (trainRange==='M') {
-    // Weekly buckets within current month
+  } else if (range==='M') {
     const monthStart=new Date(today.getFullYear(),today.getMonth(),1)
     let cur=new Date(monthStart)
     while (cur<=today) {
@@ -1064,11 +1039,9 @@ function renderChart() {
       buckets.push({start:cur.toISOString().slice(0,10),end:wEnd.toISOString().slice(0,10),label})
       cur.setDate(cur.getDate()+7)
     }
-  } else if (trainRange==='3M'||trainRange==='6M') {
-    // Weekly buckets
-    const days=trainRange==='3M'?91:182
+  } else if (range==='3M'||range==='6M') {
+    const days=range==='3M'?91:182
     const start=new Date(today); start.setDate(today.getDate()-days)
-    // Align to Monday
     const dow=start.getDay(); start.setDate(start.getDate()-(dow===0?6:dow-1))
     let cur=new Date(start)
     while (cur<=today) {
@@ -1078,7 +1051,7 @@ function renderChart() {
       buckets.push({start:cur.toISOString().slice(0,10),end:wEnd.toISOString().slice(0,10),label})
       cur.setDate(cur.getDate()+7)
     }
-  } else { // 1Y — monthly
+  } else {
     for (let i=11;i>=0;i--) {
       const d=new Date(today.getFullYear(),today.getMonth()-i,1)
       const mEnd=new Date(d.getFullYear(),d.getMonth()+1,0)
@@ -1088,13 +1061,11 @@ function renderChart() {
     }
   }
 
-  // Aggregate
   buckets.forEach(b=>{
     if (showDist) {
-      b.val=relevantActs
+      b.val=Math.round(relevantActs
         .filter(a=>a.startTimeLocal&&a.startTimeLocal.slice(0,10)>=b.start&&a.startTimeLocal.slice(0,10)<=b.end)
-        .reduce((s,a)=>s+(a.distance_km||0),0)
-      b.val=Math.round(b.val*10)/10
+        .reduce((s,a)=>s+(a.distance_km||0),0)*10)/10
     } else {
       b.val=relevantActs
         .filter(a=>a.startTimeLocal&&a.startTimeLocal.slice(0,10)>=b.start&&a.startTimeLocal.slice(0,10)<=b.end)
@@ -1105,35 +1076,25 @@ function renderChart() {
   const total=buckets.reduce((s,b)=>s+b.val,0)
   if (!total) { area.innerHTML=''; return }
 
-  const avgPerWeek=trainRange==='1Y'
-    ? Math.round(total/52*10)/10
-    : trainRange==='6M' ? Math.round(total/26*10)/10
-    : trainRange==='3M' ? Math.round(total/13*10)/10
-    : trainRange==='M'  ? Math.round(total/4*10)/10
-    : total
+  const avgPerWeek=range==='1Y'?Math.round(total/52*10)/10
+    :range==='6M'?Math.round(total/26*10)/10
+    :range==='3M'?Math.round(total/13*10)/10
+    :range==='M' ?Math.round(total/4*10)/10
+    :total
 
   const unit=showDist?'km':'sessions'
-  const avgLabel=trainRange==='W'?'this week':`avg/wk`
-
+  const avgLabel=range==='W'?'this week':'avg/wk'
   const maxVal=Math.max(...buckets.map(b=>b.val),1)
-  const nBars=buckets.length
-  const barH=80
-  const chartH=barH+28
+  const nBars=buckets.length, barH=80, chartH=barH+28
 
-  // Render SVG
   let bars=''
   buckets.forEach((b,i)=>{
-    const frac=b.val/maxVal
-    const bh=Math.max(frac*barH,b.val>0?2:0)
+    const bh=Math.max((b.val/maxVal)*barH,b.val>0?2:0)
     const isLast=b.end>=todayStr.slice(0,b.end.length)
     const fill=isLast?'var(--red)':'rgba(255,31,31,0.35)'
-    const pct=`${i/(nBars>1?nBars-1:1)*100}%`
-    bars+=`<g transform="translate(${i},0)">
-      <rect x="0.5" y="${barH-bh}" width="0.8" height="${bh}" fill="${fill}" rx="0.1"/>
-    </g>`
+    bars+=`<g transform="translate(${i},0)"><rect x="0.5" y="${barH-bh}" width="0.8" height="${bh}" fill="${fill}" rx="0.15"/></g>`
   })
 
-  // X-axis labels — show every Nth depending on count
   const step=nBars<=7?1:nBars<=13?2:nBars<=26?4:1
   let labels=''
   buckets.forEach((b,i)=>{
@@ -1149,17 +1110,14 @@ function renderChart() {
   area.innerHTML=`<div class="chart-wrap">
     <div class="chart-header">
       <div>
-        <div class="chart-ttl">${showDist?'Distance':'Sessions'} · ${trainRange}</div>
+        <div class="chart-ttl">${showDist?'Distance':'Sessions'} · ${range}</div>
         <div class="chart-total">${totalDisplay} <span style="font-size:14px;font-weight:400;color:var(--dim)">${unit}</span></div>
-        ${trainRange!=='W'?`<div class="chart-sub">${avgDisplay} ${unit} ${avgLabel}</div>`:''}
+        ${range!=='W'?`<div class="chart-sub">${avgDisplay} ${unit} ${avgLabel}</div>`:''}
       </div>
     </div>
-    <svg class="chart-svg" viewBox="0 0 ${nBars} ${chartH}" preserveAspectRatio="none"
-      style="height:${chartH}px">
+    <svg class="chart-svg" viewBox="0 0 ${nBars} ${chartH}" preserveAspectRatio="none" style="height:${chartH}px">
       ${bars}
-      <g style="font-family:-apple-system,sans-serif" transform="translate(0,${barH+2})">
-        ${labels}
-      </g>
+      <g style="font-family:-apple-system,sans-serif" transform="translate(0,${barH+2})">${labels}</g>
     </svg>
   </div>`
 }
