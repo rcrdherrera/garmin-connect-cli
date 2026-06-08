@@ -1367,9 +1367,19 @@ function renderCoach() {
   area.scrollTop=area.scrollHeight
 }
 
+function _inferWorkoutType() {
+  const text=c_msgs.filter(m=>m.r==='assistant').map(m=>m.t).join(' ')
+  if (/lower.?body|calf raise|glute|split squat|step.?up|lunge|single.?leg|hip raise|rdl/i.test(text)) return 'lower-body'
+  if (/upper.?body|push.?up|pull.?up|chin.?up|pike|plank|crunch|dip\b/i.test(text)) return 'upper-body'
+  if (/strength|dumbbell|kettlebell|barbell|resistance training/i.test(text)) return 'strength'
+  if (/weekly plan|full week|multiple session/i.test(text)) return 'weekly'
+  if (/\brun|running|zone 2|z2|cadence|\bkm\b|easy run|fartlek|tempo/i.test(text)) return 'running'
+  return 'weekly'
+}
+
 function updateUploadBar() {
   const bar=document.getElementById('upload-bar')
-  if (ct==='chat'||ct==='history'||!c_msgs.length) { bar.innerHTML=''; return }
+  if (ct==='history'||!c_msgs.length) { bar.innerHTML=''; return }
   bar.innerHTML=`<button class="upload-btn" id="ubtn" onclick="uploadWorkouts()">↑ UPLOAD TO GARMIN</button>`
 }
 
@@ -1385,10 +1395,11 @@ async function getCoaching() {
 }
 
 async function uploadWorkouts() {
+  const type=ct==='chat'?_inferWorkoutType():ct
   const btn=document.getElementById('ubtn')
   if(btn){btn.disabled=true;btn.textContent='UPLOADING…'}
   try {
-    const d=await api('POST','/coach',{type:ct,upload:true,conversation_id:c_cid})
+    const d=await api('POST','/coach',{type,upload:true,conversation_id:c_cid})
     const ws=d.uploaded_workouts||[]
     document.getElementById('upload-bar').innerHTML=`<div class="upload-done">
       <div class="upload-done-ttl">✓ Uploaded to Garmin</div>
