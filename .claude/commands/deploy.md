@@ -61,12 +61,31 @@ If it fails: show the runner logs.
 
 ---
 
-## Step 5 — Verify
+## Step 5 — Health probe
 
-Check that the service restarted on the self-hosted runner. The deploy workflow already calls
-`systemctl is-active garmincoach` — if Step 4 succeeded, the service is up.
+Wait a few seconds for the service to fully come up, then probe the API directly:
+
+```bash
+sleep 5
+SERVER_IP=$(tailscale status --json 2>/dev/null \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); \
+    peers=[v for v in d.get('Peer',{}).values() if 'garmincoach' in v.get('HostName','').lower()]; \
+    print(peers[0]['TailscaleIPs'][0] if peers else '')" 2>/dev/null)
+if [ -n "$SERVER_IP" ]; then
+  curl -sf --max-time 5 "http://${SERVER_IP}:8765/health" \
+    && echo "✅ /health responded — server is live" \
+    || echo "❌ /health unreachable — service may still be starting"
+else
+  echo "⚠️  Could not resolve garmincoach-server Tailscale IP — skipping health probe"
+fi
+```
+
+---
+
+## Step 6 — Report
 
 Report to the user:
 - Which commit was deployed (git short SHA + subject)
 - Total time from push to live
+- Health probe result
 - Whether any step required attention

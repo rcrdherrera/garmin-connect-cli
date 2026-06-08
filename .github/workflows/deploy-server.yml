@@ -32,4 +32,4 @@ jobs:
         run: |
           sleep 2
           systemctl is-active garmincoach
-          echo "Server restarted successfully."
+          curl -sf --max-time 5 http://localhost:8765/health && echo "HTTP health check passed." || echo "Warning: HTTP health check failed."

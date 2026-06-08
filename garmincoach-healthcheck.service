@@ -1,0 +1,12 @@
+[Unit]
+Description=GarminCoach HTTP health check
+After=network.target garmincoach.service
+
+[Service]
+Type=oneshot
+User=ricardo
+EnvironmentFile=/etc/garmincoach.env
+ExecStart=/opt/garmin-connect-cli/healthcheck.sh
+
+[Install]
+WantedBy=multi-user.target

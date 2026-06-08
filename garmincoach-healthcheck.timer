@@ -1,0 +1,10 @@
+[Unit]
+Description=Run GarminCoach health check every hour
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1h
+Unit=garmincoach-healthcheck.service
+
+[Install]
+WantedBy=timers.target
