@@ -11,6 +11,7 @@
   <style>
     /* ── Design tokens ──────────────────────────────────────── */
     :root {
+      color-scheme: dark;
       --bg:       #060606;
       --card:     #0e0e0e;
       --card2:    #161616;
@@ -163,6 +164,7 @@
     .fchip.active {
       border-color: var(--red); color: var(--red); background: var(--red-dim);
     }
+    .fchip:hover:not(.active) { border-color: var(--border-s); color: var(--text); }
     .filter-sep {
       width: 1.5px; height: 18px; background: var(--border); margin: 0 3px; flex-shrink: 0;
     }
@@ -198,6 +200,7 @@
       padding: 14px; cursor: pointer; transition: border-color .12s;
       box-shadow: 0 2px 12px rgba(0,0,0,0.4);
     }
+    .act-item:hover  { border-color: rgba(255,255,255,0.18); }
     .act-item:active { border-color: var(--border-s); }
     .act-hdr  { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
     .act-name { font-size: 14px; font-weight: 700; }
@@ -318,10 +321,12 @@
       box-shadow: 0 4px 16px rgba(232,0,11,0.4);
       transition: transform .1s, box-shadow .1s;
     }
+    .abtn:hover:not(:disabled):not(.ghost) { box-shadow: 0 6px 22px rgba(232,0,11,0.55); }
     .abtn:active { transform: scale(0.98); box-shadow: 0 1px 6px rgba(232,0,11,0.3); }
     .abtn:disabled { opacity: 0.45; pointer-events: none; }
     .abtn.full  { width: 100%; }
     .abtn.ghost { background: transparent; border: 1.5px solid var(--border); color: var(--dim); box-shadow: none; }
+    .abtn.ghost:hover:not(:disabled) { border-color: var(--border-s); color: var(--text); }
 
     /* ── Plan card ───────────────────────────────────────────── */
     .plan-row { background: var(--card); border: 1.5px solid var(--border); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
@@ -345,6 +350,7 @@
       cursor: pointer; color: rgba(255,255,255,0.75); font-size: 14px; font-family: inherit; gap: 12px;
       transition: border-color .12s;
     }
+    .sug-btn:hover  { border-color: var(--border-s); color: var(--text); }
     .sug-btn:active { border-color: var(--border-s); }
     .sug-arrow { color: var(--red); flex-shrink: 0; font-size: 14px; }
 
@@ -354,6 +360,7 @@
       padding: 12px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 3px;
       transition: border-color .12s;
     }
+    .conv-item:hover  { border-color: rgba(255,255,255,0.18); }
     .conv-item:active { border-color: var(--border-s); }
     .conv-badge {
       font-size: 8px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;
@@ -385,6 +392,7 @@
       transition: background .12s, color .12s, border-color .12s;
     }
     .chip.active { background: var(--red); border-color: var(--red); color: #fff; box-shadow: 0 2px 10px rgba(232,0,11,0.4); }
+    .chip:hover:not(.active) { border-color: var(--border-s); color: var(--text); }
 
     /* ── Toast ───────────────────────────────────────────────── */
     #toast {
@@ -481,13 +489,13 @@
     <div class="login-field">
       <label class="login-label" for="l-url">Server URL</label>
       <input class="login-input" id="l-url" type="url" placeholder="http://100.x.x.x:8765"
-        autocorrect="off" autocapitalize="none" spellcheck="false">
+        autocorrect="off" autocapitalize="none" spellcheck="false" autocomplete="url">
     </div>
     <div class="login-field">
       <label class="login-label" for="l-token">Access Token</label>
       <div class="login-pw-wrap">
         <input class="login-input" id="l-token" type="password" placeholder="Your secret token"
-          autocorrect="off" autocapitalize="none" spellcheck="false">
+          autocorrect="off" autocapitalize="none" spellcheck="false" autocomplete="current-password">
         <button class="pw-toggle" type="button" onclick="togglePw('l-token')" aria-label="Show or hide token">
           <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg>
         </button>
@@ -514,7 +522,7 @@
     <!-- TODAY ───────────────────────────────────────────────── -->
     <div class="tab-panel active" id="tab-today">
       <div class="pad gap" id="today-body">
-        <div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Fetching Garmin Data</div></div>
+        <div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Fetching Garmin Data…</div></div>
       </div>
     </div>
 
@@ -539,7 +547,7 @@
       <!-- List view -->
       <div id="train-list" style="display:flex;flex-direction:column;flex:1">
         <div class="pad gap" id="training-body">
-          <div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Loading Activities</div></div>
+          <div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Loading Activities…</div></div>
         </div>
       </div>
 
@@ -602,12 +610,12 @@
     <div class="modal-handle" aria-hidden="true"></div>
     <div class="modal-ttl">Settings</div>
     <div>
-      <div class="field-lbl">Server URL</div>
-      <input type="url" class="text-input" id="s-url" placeholder="http://100.x.x.x:8765" autocorrect="off" autocapitalize="none">
+      <label class="field-lbl" for="s-url">Server URL</label>
+      <input type="url" class="text-input" id="s-url" placeholder="http://100.x.x.x:8765" autocorrect="off" autocapitalize="none" autocomplete="url">
     </div>
     <div>
-      <div class="field-lbl">Access Token</div>
-      <input type="password" class="text-input" id="s-token" placeholder="Your secret token">
+      <label class="field-lbl" for="s-token">Access Token</label>
+      <input type="password" class="text-input" id="s-token" placeholder="Your secret token" autocomplete="current-password">
     </div>
     <div class="conn-row">
       <div class="conn-info"><div class="cdot" id="cdot"></div><span id="clabel">Not tested</span></div>
@@ -847,7 +855,7 @@ function localDateStr() {
 async function loadToday() {
   today_loaded=true
   const b=document.getElementById('today-body')
-  b.innerHTML=`<div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Fetching Garmin Data</div></div>`
+  b.innerHTML=`<div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Fetching Garmin Data…</div></div>`
   try {
     const s=await api('GET', '/status?local_date='+localDateStr())
     renderToday(s)
@@ -987,7 +995,7 @@ let detailMsgs=[], detailCid=null, detailLoading=false
 async function loadTraining() {
   training_loaded=true
   const b=document.getElementById('training-body')
-  b.innerHTML=`<div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Loading Activities</div></div>`
+  b.innerHTML=`<div class="loading-card"><div class="spinner"></div><div class="loading-lbl">Loading Activities…</div></div>`
   const since=rangeToSince(trainRange)
   const limit=trainRange==='1Y'?500:trainRange==='6M'?300:150
   try {
@@ -1214,7 +1222,7 @@ function renderActsList() {
       .filter(z=>z[0]>0).map(z=>`<div class="zone-seg" style="flex:${z[0]};background:${z[1]}"></div>`).join('')
     }</div>`:''
     const safeA=JSON.stringify(a).replace(/'/g,"&#39;")
-    h+=`<div class="act-item" onclick="openDetail(${acts.indexOf(a)})">
+    h+=`<div class="act-item" role="button" tabindex="0" onclick="openDetail(${acts.indexOf(a)})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetail(${acts.indexOf(a)})}">
       <div class="act-hdr">
         <div>
           <div class="act-name">${x(a.name||'Activity')}</div>
@@ -1286,7 +1294,7 @@ function renderDetailPanel(autoScrollToAnalysis) {
   let analysisHtml=''
   if (!detailMsgs.length && !detailLoading) {
     analysisHtml=`<button class="abtn full" id="detail-analyze-btn" onclick="runDetailAnalyze()">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2 12h2v2H2zm3-4h2v6H5zm3-3h2v9H8zm3-4h2v13h-2z"/></svg>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 12h2v2H2zm3-4h2v6H5zm3-3h2v9H8zm3-4h2v13h-2z"/></svg>
       Analyze This Activity
     </button>`
   } else if (detailLoading && !detailMsgs.length) {
@@ -1298,7 +1306,7 @@ function renderDetailPanel(autoScrollToAnalysis) {
 
   const followup=detailMsgs.length&&!detailLoading?`<div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:8px">
     <textarea class="ifield" id="detail-input" placeholder="Ask a follow-up…" rows="1"
-      oninput="autoH(this)" onkeydown="dkd(event)"></textarea>
+      aria-label="Follow-up question" oninput="autoH(this)" onkeydown="dkd(event)"></textarea>
     <button class="abtn full" onclick="detailSend()">Send</button>
   </div>`:''
 
@@ -1361,7 +1369,7 @@ function setCoachType(t) {
 
 async function loadCoachHistory() {
   const area=document.getElementById('coach-msgs')
-  area.innerHTML=`<div class="loading-card" style="margin:12px 16px"><div class="spinner"></div><div class="loading-lbl">Loading History</div></div>`
+  area.innerHTML=`<div class="loading-card" style="margin:12px 16px"><div class="spinner"></div><div class="loading-lbl">Loading History…</div></div>`
   try {
     const data=await api('GET','/conversations')
     const convs=(data.conversations||[]).filter(c=>c.kind==='coach'||c.kind==='ask')
@@ -1372,7 +1380,7 @@ async function loadCoachHistory() {
     area.innerHTML=`<div class="pad gap">`+convs.map(c=>{
       const badge=c.kind==='ask'?'CHAT':'COACH'
       const dt=c.updated_at?new Date(c.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}):''
-      return `<div class="conv-item" onclick="openCoachConversation(${c.id})">
+      return `<div class="conv-item" role="button" tabindex="0" onclick="openCoachConversation(${c.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCoachConversation(${c.id})}">
         <div style="display:flex;align-items:center;gap:8px">
           <span class="conv-badge">${badge}</span>
           <span style="font-size:11px;color:var(--dim)">${dt}</span>
@@ -1386,7 +1394,7 @@ async function loadCoachHistory() {
 
 async function openCoachConversation(id) {
   const area=document.getElementById('coach-msgs')
-  area.innerHTML=`<div class="loading-card" style="margin:12px 16px"><div class="spinner"></div><div class="loading-lbl">Loading</div></div>`
+  area.innerHTML=`<div class="loading-card" style="margin:12px 16px"><div class="spinner"></div><div class="loading-lbl">Loading…</div></div>`
   try {
     const conv=await api('GET',`/conversations/${id}`)
     c_cid=conv.id
