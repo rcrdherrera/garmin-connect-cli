@@ -361,11 +361,20 @@
       border: 1px solid var(--border);
     }
 
-    /* ── Chip row (Coach tab) ────────────────────────────────── */
+    /* ── Chip rows (Coach tab) ───────────────────────────────── */
+    .chip-rows-wrap {
+      flex-shrink: 0; background: var(--bg); border-bottom: 2px solid var(--border);
+      padding: 8px 0 10px;
+    }
+    .chip-section-lbl {
+      font-size: 9px; font-weight: 900; letter-spacing: 1.5px; color: var(--dim);
+      text-transform: uppercase; padding: 0 16px 4px;
+    }
+    .chip-section-lbl:not(:first-child) { padding-top: 10px; }
     .chip-row {
-      flex-shrink: 0; display: flex; gap: 6px; overflow-x: auto; overscroll-behavior: contain;
+      display: flex; gap: 6px; overflow-x: auto; overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch; scrollbar-width: none;
-      padding: 8px 16px; background: var(--bg); border-bottom: 2px solid var(--border);
+      padding: 0 16px;
     }
     .chip-row::-webkit-scrollbar { display: none; }
     .chip {
@@ -543,14 +552,20 @@
 
     <!-- COACH ─────────────────────────────────────────────────── -->
     <div class="tab-panel" id="tab-coach">
-      <div class="chip-row" id="coach-chip-row">
-        <button class="chip active" data-ct="chat"       onclick="setCoachType('chat')">Chat</button>
-        <button class="chip"        data-ct="weekly"     onclick="setCoachType('weekly')">Weekly</button>
-        <button class="chip"        data-ct="running"    onclick="setCoachType('running')">Run</button>
-        <button class="chip"        data-ct="strength"   onclick="setCoachType('strength')">Strength</button>
-        <button class="chip"        data-ct="lower-body" onclick="setCoachType('lower-body')">Lower Body</button>
-        <button class="chip"        data-ct="upper-body" onclick="setCoachType('upper-body')">Upper Body</button>
-        <button class="chip"        data-ct="history"    onclick="setCoachType('history')">History</button>
+      <div class="chip-rows-wrap" id="coach-chip-row">
+        <div class="chip-section-lbl">Conversations</div>
+        <div class="chip-row">
+          <button class="chip active" data-ct="chat"    onclick="setCoachType('chat')">Chat</button>
+          <button class="chip"        data-ct="history" onclick="setCoachType('history')">History</button>
+        </div>
+        <div class="chip-section-lbl">Generate Workout</div>
+        <div class="chip-row">
+          <button class="chip" data-ct="weekly"     onclick="setCoachType('weekly')">Weekly Plan</button>
+          <button class="chip" data-ct="running"    onclick="setCoachType('running')">Run</button>
+          <button class="chip" data-ct="strength"   onclick="setCoachType('strength')">Strength</button>
+          <button class="chip" data-ct="lower-body" onclick="setCoachType('lower-body')">Lower Body</button>
+          <button class="chip" data-ct="upper-body" onclick="setCoachType('upper-body')">Upper Body</button>
+        </div>
       </div>
       <div id="upload-bar"></div>
       <div class="chat-scroll" id="coach-msgs"></div>
