@@ -157,11 +157,15 @@ An hourly systemd timer (`garmincoach-healthcheck.timer`) runs on the server and
 
 **One-time setup** (run on the server after first deploy):
 ```bash
-sudo bash /opt/garmin-connect-cli/setup_healthcheck.sh <your-ntfy-topic>
+sudo bash /opt/garmin-connect-cli/setup_healthcheck.sh <telegram-bot-token> <telegram-chat-id>
 ```
 
-Subscribe to `https://ntfy.sh/<your-ntfy-topic>` in the ntfy app to receive alerts.
-`NTFY_TOPIC` is stored in `/etc/garmincoach.env` alongside the other secrets.
+To get these values:
+1. Message **@BotFather** on Telegram → `/newbot` → copy the token
+2. Send any message to your new bot
+3. `curl "https://api.telegram.org/bot<TOKEN>/getUpdates"` → look for `result[0].message.chat.id`
+
+`TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` are stored in `/etc/garmincoach.env` alongside the other secrets.
 
 The deploy workflow (`deploy-server.yml`) also now curls `localhost:8765/health` after
 every restart as an inline verification step.

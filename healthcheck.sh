@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # GarminCoach HTTP health check — run by garmincoach-healthcheck.timer
-# Curls localhost:8765/health; pushes ntfy.sh notification if down.
-# Requires NTFY_TOPIC in /etc/garmincoach.env
+# Curls localhost:8765/health; sends a Telegram message if down.
+# Requires TELEGRAM_TOKEN and TELEGRAM_CHAT_ID in /etc/garmincoach.env
 
 set -euo pipefail
 
@@ -14,14 +14,13 @@ if curl -sf --max-time "$TIMEOUT" "$URL" > /dev/null 2>&1; then
   exit 0
 fi
 
-# Server did not respond — send push notification
-if [ -n "${NTFY_TOPIC:-}" ]; then
+# Server did not respond — send Telegram alert
+if [ -n "${TELEGRAM_TOKEN:-}" ] && [ -n "${TELEGRAM_CHAT_ID:-}" ]; then
   curl -s --max-time 5 \
-    -H "Title: GarminCoach DOWN on ${HOST}" \
-    -H "Priority: high" \
-    -H "Tags: rotating_light" \
-    -d "Health check failed: ${URL} did not respond within ${TIMEOUT}s" \
-    "https://ntfy.sh/${NTFY_TOPIC}" || true
+    "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+    -d "chat_id=${TELEGRAM_CHAT_ID}" \
+    -d "text=🚨 GarminCoach DOWN on ${HOST}%0A${URL} did not respond within ${TIMEOUT}s" \
+    > /dev/null || true
 fi
 
 exit 1

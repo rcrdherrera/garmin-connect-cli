@@ -147,13 +147,13 @@ isn't available in cloud sandboxes).
 
 | File | Purpose |
 |------|---------|
-| `healthcheck.sh` | Curls `localhost:8765/health`; posts to ntfy.sh if down |
+| `healthcheck.sh` | Curls `localhost:8765/health`; sends Telegram message if down |
 | `garmincoach-healthcheck.service` | Oneshot systemd unit that runs the script |
 | `garmincoach-healthcheck.timer` | Fires 2min after boot, then every hour |
 | `setup_healthcheck.sh` | One-time installer — run once on server via SSH |
 
-**Setup**: `sudo bash /opt/garmin-connect-cli/setup_healthcheck.sh <ntfy-topic>`
-**Subscribe**: `https://ntfy.sh/<ntfy-topic>` in the ntfy app
+**Setup**: `sudo bash /opt/garmin-connect-cli/setup_healthcheck.sh <telegram-token> <chat-id>`
+**Credentials**: `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` stored in `/etc/garmincoach.env`
 
 ### Planned
 - Weekly context refresh — sync latest training facts from DB into vault wiki

@@ -1,31 +1,50 @@
 #!/usr/bin/env bash
 # Run ONCE on the Ubuntu server to install the hourly health check timer.
-# Usage: sudo bash setup_healthcheck.sh <ntfy-topic>
 #
-# After setup, subscribe to https://ntfy.sh/<ntfy-topic> in the ntfy app
-# to receive push notifications when the server goes down.
+# Prerequisites — create a Telegram bot first:
+#   1. Message @BotFather on Telegram → /newbot → follow prompts → copy the token
+#   2. Send any message to your new bot
+#   3. Get your chat ID:
+#      curl "https://api.telegram.org/bot<TOKEN>/getUpdates" | python3 -m json.tool
+#      Look for: result[0].message.chat.id
+#
+# Usage:
+#   sudo bash setup_healthcheck.sh <telegram-bot-token> <telegram-chat-id>
+#
+# Example:
+#   sudo bash setup_healthcheck.sh 7812345678:AAFxyz... 123456789
 
 set -euo pipefail
 
-NTFY_TOPIC="${1:-}"
-if [ -z "$NTFY_TOPIC" ]; then
-  echo "Usage: sudo bash setup_healthcheck.sh <ntfy-topic>"
-  echo "  Example: sudo bash setup_healthcheck.sh garmincoach-abc123"
+TELEGRAM_TOKEN="${1:-}"
+TELEGRAM_CHAT_ID="${2:-}"
+
+if [ -z "$TELEGRAM_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+  echo "Usage: sudo bash setup_healthcheck.sh <telegram-bot-token> <telegram-chat-id>"
+  echo ""
+  echo "To get these values:"
+  echo "  1. Message @BotFather on Telegram → /newbot → copy the token"
+  echo "  2. Send any message to your bot"
+  echo "  3. Run: curl \"https://api.telegram.org/bot<TOKEN>/getUpdates\""
+  echo "     Look for result[0].message.chat.id"
   exit 1
 fi
 
 REPO_DIR=/opt/garmin-connect-cli
+ENV_FILE=/etc/garmincoach.env
 
-echo "→ Adding NTFY_TOPIC to /etc/garmincoach.env"
-if grep -q '^NTFY_TOPIC=' /etc/garmincoach.env 2>/dev/null; then
-  sed -i "s|^NTFY_TOPIC=.*|NTFY_TOPIC=${NTFY_TOPIC}|" /etc/garmincoach.env
-else
-  echo "NTFY_TOPIC=${NTFY_TOPIC}" >> /etc/garmincoach.env
-fi
+echo "→ Writing Telegram credentials to ${ENV_FILE}"
+for key in TELEGRAM_TOKEN TELEGRAM_CHAT_ID; do
+  val="${!key}"
+  if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^${key}=.*|${key}=${val}|" "$ENV_FILE"
+  else
+    echo "${key}=${val}" >> "$ENV_FILE"
+  fi
+done
 
 echo "→ Installing healthcheck.sh"
-cp "${REPO_DIR}/healthcheck.sh" /opt/garmin-connect-cli/healthcheck.sh
-chmod +x /opt/garmin-connect-cli/healthcheck.sh
+chmod +x "${REPO_DIR}/healthcheck.sh"
 
 echo "→ Installing systemd units"
 cp "${REPO_DIR}/garmincoach-healthcheck.service" /etc/systemd/system/
@@ -36,7 +55,8 @@ systemctl daemon-reload
 systemctl enable --now garmincoach-healthcheck.timer
 
 echo ""
-echo "✅ Health check installed."
-echo "   Timer fires 2 min after boot, then every hour."
-echo "   Subscribe to push notifications: https://ntfy.sh/${NTFY_TOPIC}"
-echo "   Test now: sudo systemctl start garmincoach-healthcheck.service"
+echo "✅ Health check installed. Timer fires 2 min after boot, then every hour."
+echo ""
+echo "Test it now:"
+echo "  sudo systemctl start garmincoach-healthcheck.service"
+echo "  journalctl -u garmincoach-healthcheck.service -n 20"
