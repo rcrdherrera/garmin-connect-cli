@@ -524,8 +524,8 @@
       <!-- Filters: date range + type -->
       <div class="filter-bar">
         <div class="filter-row" id="range-row">
-          <button class="fchip" data-r="W"  onclick="setRange('W')">W</button>
-          <button class="fchip active" data-r="M"  onclick="setRange('M')">M</button>
+          <button class="fchip" data-r="7D" onclick="setRange('7D')">7D</button>
+          <button class="fchip active" data-r="1M" onclick="setRange('1M')">1M</button>
           <button class="fchip" data-r="3M" onclick="setRange('3M')">3M</button>
           <button class="fchip" data-r="6M" onclick="setRange('6M')">6M</button>
           <button class="fchip" data-r="1Y" onclick="setRange('1Y')">1Y</button>
@@ -750,13 +750,13 @@ function isStrength(type) {
 function rangeToSince(r) {
   const d=new Date()
   switch(r) {
-    case 'W':  { const mon=new Date(d); mon.setDate(d.getDate()-d.getDay()+1); return mon.toISOString().slice(0,10) }
-    case 'M':  return new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10)
+    case '7D': { const t=new Date(d); t.setDate(d.getDate()-6); return t.toISOString().slice(0,10) }
+    case '1M': { const t=new Date(d); t.setDate(d.getDate()-29); return t.toISOString().slice(0,10) }
     case '3M': { const t=new Date(d); t.setDate(t.getDate()-90); return t.toISOString().slice(0,10) }
     case '6M': { const t=new Date(d); t.setDate(t.getDate()-180); return t.toISOString().slice(0,10) }
     case '1Y': { const t=new Date(d); t.setDate(t.getDate()-365); return t.toISOString().slice(0,10) }
   }
-  return new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10)
+  const t=new Date(d); t.setDate(d.getDate()-29); return t.toISOString().slice(0,10)
 }
 
 // ── Tab switch ──────────────────────────────────────────────
@@ -836,7 +836,7 @@ function saveSettings() {
 
 // ── TODAY ────────────────────────────────────────────────────
 let today_loaded=false
-let todayRange='W'
+let todayRange='7D'
 let today_chart_acts=[]
 
 function localDateStr() {
@@ -913,8 +913,8 @@ function renderToday(s) {
   </div>`
   h+=`<div>
     <div class="filter-row" id="today-range-row" style="margin-bottom:8px">
-      <button class="fchip ${todayRange==='W' ?'active':''}" data-tr="W"  onclick="setTodayRange('W')">W</button>
-      <button class="fchip ${todayRange==='M' ?'active':''}" data-tr="M"  onclick="setTodayRange('M')">M</button>
+      <button class="fchip ${todayRange==='7D'?'active':''}" data-tr="7D" onclick="setTodayRange('7D')">7D</button>
+      <button class="fchip ${todayRange==='1M'?'active':''}" data-tr="1M" onclick="setTodayRange('1M')">1M</button>
       <button class="fchip ${todayRange==='3M'?'active':''}" data-tr="3M" onclick="setTodayRange('3M')">3M</button>
       <button class="fchip ${todayRange==='6M'?'active':''}" data-tr="6M" onclick="setTodayRange('6M')">6M</button>
       <button class="fchip ${todayRange==='1Y'?'active':''}" data-tr="1Y" onclick="setTodayRange('1Y')">1Y</button>
@@ -978,7 +978,7 @@ function renderToday(s) {
 // ── TRAINING ─────────────────────────────────────────────────
 let training_loaded=false
 let all_acts=[]
-let trainRange='M'
+let trainRange='1M'
 let trainType='all'
 let trainDetailOpen=false
 let detailAct=null
@@ -1020,7 +1020,7 @@ function renderTrainingView() {
   renderActsList()
 }
 
-// ── Mileage Chart ────────────────────────────────────────────
+// ── Mileage Chart (line) ─────────────────────────────────────
 function renderChart(areaId, acts, range, type) {
   const area=document.getElementById(areaId)
   if (!area) return
@@ -1029,40 +1029,47 @@ function renderChart(areaId, acts, range, type) {
     ? acts.filter(a=>isStrength(a.type))
     : acts.filter(a=>isRun(a.type)&&(a.distance_km||0)>0)
 
-  if (!relevantActs.length) { area.innerHTML=`<div style="padding:16px 0;text-align:center;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase">No runs in this period</div>`; return }
+  if (!relevantActs.length) { area.innerHTML=`<div style="padding:16px 0;text-align:center;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase">No data in this period</div>`; return }
 
   const today=new Date()
   const todayStr=today.toISOString().slice(0,10)
-
   const buckets=[]
-  if (range==='W') {
-    const mon=new Date(today); mon.setDate(today.getDate()-today.getDay()+1)
-    for (let i=0;i<7;i++) {
-      const d=new Date(mon); d.setDate(mon.getDate()+i)
-      if (d>today) break
+
+  if (range==='7D') {
+    for (let i=6;i>=0;i--) {
+      const d=new Date(today); d.setDate(today.getDate()-i)
       const ds=d.toISOString().slice(0,10)
-      buckets.push({start:ds,end:ds,label:d.toLocaleDateString('en-US',{weekday:'short'}).slice(0,1)})
+      buckets.push({start:ds,end:ds,label:d.toLocaleDateString('en-US',{weekday:'short'}),isToday:i===0})
     }
-  } else if (range==='M') {
-    const monthStart=new Date(today.getFullYear(),today.getMonth(),1)
-    let cur=new Date(monthStart)
-    while (cur<=today) {
-      const wEnd=new Date(cur); wEnd.setDate(cur.getDate()+6)
-      if (wEnd>today) wEnd.setTime(today.getTime())
-      const label=cur.toLocaleDateString('en-US',{month:'short',day:'numeric'})
-      buckets.push({start:cur.toISOString().slice(0,10),end:wEnd.toISOString().slice(0,10),label})
-      cur.setDate(cur.getDate()+7)
+  } else if (range==='1M') {
+    for (let i=29;i>=0;i--) {
+      const d=new Date(today); d.setDate(today.getDate()-i)
+      const ds=d.toISOString().slice(0,10)
+      const showLabel=i===29||i===22||i===15||i===8||i===0
+      buckets.push({start:ds,end:ds,label:showLabel?d.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'',isToday:i===0})
     }
-  } else if (range==='3M'||range==='6M') {
-    const days=range==='3M'?91:182
-    const start=new Date(today); start.setDate(today.getDate()-days)
+  } else if (range==='3M') {
+    const start=new Date(today); start.setDate(today.getDate()-90)
     const dow=start.getDay(); start.setDate(start.getDate()-(dow===0?6:dow-1))
-    let cur=new Date(start)
+    let cur=new Date(start),idx=0
     while (cur<=today) {
       const wEnd=new Date(cur); wEnd.setDate(cur.getDate()+6)
       if (wEnd>today) wEnd.setTime(today.getTime())
-      const label=cur.toLocaleDateString('en-US',{month:'short',day:'numeric'})
-      buckets.push({start:cur.toISOString().slice(0,10),end:wEnd.toISOString().slice(0,10),label})
+      const label=idx%2===0?cur.toLocaleDateString('en-US',{month:'short',day:'numeric'}):''
+      buckets.push({start:cur.toISOString().slice(0,10),end:wEnd.toISOString().slice(0,10),label,isToday:wEnd.toISOString().slice(0,10)>=todayStr})
+      cur.setDate(cur.getDate()+7); idx++
+    }
+  } else if (range==='6M') {
+    const start=new Date(today); start.setDate(today.getDate()-180)
+    const dow=start.getDay(); start.setDate(start.getDate()-(dow===0?6:dow-1))
+    let cur=new Date(start),lastMonth=-1
+    while (cur<=today) {
+      const wEnd=new Date(cur); wEnd.setDate(cur.getDate()+6)
+      if (wEnd>today) wEnd.setTime(today.getTime())
+      const mon=cur.getMonth()
+      const label=mon!==lastMonth?cur.toLocaleDateString('en-US',{month:'short'}):''
+      if (mon!==lastMonth) lastMonth=mon
+      buckets.push({start:cur.toISOString().slice(0,10),end:wEnd.toISOString().slice(0,10),label,isToday:wEnd.toISOString().slice(0,10)>=todayStr})
       cur.setDate(cur.getDate()+7)
     }
   } else {
@@ -1070,70 +1077,124 @@ function renderChart(areaId, acts, range, type) {
       const d=new Date(today.getFullYear(),today.getMonth()-i,1)
       const mEnd=new Date(d.getFullYear(),d.getMonth()+1,0)
       if (mEnd>today) mEnd.setTime(today.getTime())
-      const label=d.toLocaleDateString('en-US',{month:'short'})
-      buckets.push({start:d.toISOString().slice(0,10),end:mEnd.toISOString().slice(0,10),label})
+      buckets.push({start:d.toISOString().slice(0,10),end:mEnd.toISOString().slice(0,10),label:d.toLocaleDateString('en-US',{month:'short'}),isToday:i===0})
     }
   }
 
   buckets.forEach(b=>{
-    if (showDist) {
-      b.val=Math.round(relevantActs
-        .filter(a=>a.startTimeLocal&&a.startTimeLocal.slice(0,10)>=b.start&&a.startTimeLocal.slice(0,10)<=b.end)
-        .reduce((s,a)=>s+(a.distance_km||0),0)*10)/10
-    } else {
-      b.val=relevantActs
-        .filter(a=>a.startTimeLocal&&a.startTimeLocal.slice(0,10)>=b.start&&a.startTimeLocal.slice(0,10)<=b.end)
-        .length
-    }
+    b.val=showDist
+      ?Math.round(relevantActs.filter(a=>a.startTimeLocal&&a.startTimeLocal.slice(0,10)>=b.start&&a.startTimeLocal.slice(0,10)<=b.end).reduce((s,a)=>s+(a.distance_km||0),0)*10)/10
+      :relevantActs.filter(a=>a.startTimeLocal&&a.startTimeLocal.slice(0,10)>=b.start&&a.startTimeLocal.slice(0,10)<=b.end).length
   })
 
   const total=buckets.reduce((s,b)=>s+b.val,0)
-  if (!total) { area.innerHTML=`<div style="padding:16px 0;text-align:center;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase">No runs in this period</div>`; return }
+  if (!total) { area.innerHTML=`<div style="padding:16px 0;text-align:center;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase">No data in this period</div>`; return }
 
+  const unit=showDist?'km':'sessions'
   const avgPerWeek=range==='1Y'?Math.round(total/52*10)/10
     :range==='6M'?Math.round(total/26*10)/10
     :range==='3M'?Math.round(total/13*10)/10
-    :range==='M' ?Math.round(total/4*10)/10
+    :range==='1M'?Math.round(total/4*10)/10
     :total
-
-  const unit=showDist?'km':'sessions'
-  const avgLabel=range==='W'?'this week':'avg/wk'
-  const maxVal=Math.max(...buckets.map(b=>b.val),1)
-  const nBars=buckets.length, barH=80, chartH=barH+28
-
-  let bars=''
-  buckets.forEach((b,i)=>{
-    const bh=Math.max((b.val/maxVal)*barH,b.val>0?2:0)
-    const isLast=b.end>=todayStr.slice(0,b.end.length)
-    const fill=isLast?'var(--red)':'rgba(255,31,31,0.35)'
-    bars+=`<g transform="translate(${i},0)"><rect x="0.5" y="${barH-bh}" width="0.8" height="${bh}" fill="${fill}" rx="0.15"/></g>`
-  })
-
-  const step=nBars<=7?1:nBars<=13?2:nBars<=26?4:1
-  let labels=''
-  buckets.forEach((b,i)=>{
-    if (i%step===0||i===nBars-1) {
-      const lx=`${i/(nBars>1?nBars-1:1)*100}%`
-      labels+=`<text x="${lx}" y="100%" font-size="7" fill="rgba(255,255,255,0.35)" font-weight="700" letter-spacing="0.3" text-anchor="middle" dominant-baseline="auto" dy="-2">${b.label}</text>`
-    }
-  })
-
   const totalDisplay=showDist?total.toFixed(1):total
   const avgDisplay=showDist?avgPerWeek.toFixed(1):avgPerWeek
+  const avgLabel=range==='7D'?'this week':'avg/wk'
+
+  const CW=area.clientWidth||(window.innerWidth-32)
+  const PL=8,PR=8,PT=12,PB=24
+  const plotW=CW-PL-PR, plotH=72, SVG_H=PT+plotH+PB
+  const n=buckets.length, maxVal=Math.max(...buckets.map(b=>b.val),1)
+  const BLUE='#0A84FF'
+
+  const pts=buckets.map((b,i)=>({
+    x:PL+(n>1?i/(n-1)*plotW:plotW/2),
+    y:PT+plotH-(b.val/maxVal*plotH),
+    b
+  }))
+
+  const bot=PT+plotH
+  const polyPts=pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+  const areaPath=`M${pts[0].x.toFixed(1)},${bot} `+pts.map(p=>`L${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')+` L${pts[n-1].x.toFixed(1)},${bot} Z`
+  const gradId=`cg-${areaId}`
+
+  let labelsHtml='', dotsHtml=''
+  pts.forEach((p,i)=>{
+    if (buckets[i].label) labelsHtml+=`<text x="${p.x.toFixed(1)}" y="${SVG_H-3}" font-size="8" fill="rgba(255,255,255,0.4)" font-weight="600" text-anchor="middle" font-family="-apple-system,sans-serif">${buckets[i].label}</text>`
+    if (p.b.val>0) {
+      const r=p.b.isToday?'4':'2.5'
+      dotsHtml+=`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}" fill="${BLUE}"${p.b.isToday?` style="filter:drop-shadow(0 0 5px ${BLUE})"`:''}/>`
+    }
+  })
 
   area.innerHTML=`<div class="chart-wrap">
     <div class="chart-header">
       <div>
         <div class="chart-ttl">${showDist?'Distance':'Sessions'} · ${range}</div>
         <div class="chart-total">${totalDisplay} <span style="font-size:14px;font-weight:400;color:var(--dim)">${unit}</span></div>
-        ${range!=='W'?`<div class="chart-sub">${avgDisplay} ${unit} ${avgLabel}</div>`:''}
+        ${range!=='7D'?`<div class="chart-sub">${avgDisplay} ${unit} ${avgLabel}</div>`:''}
       </div>
     </div>
-    <svg class="chart-svg" viewBox="0 0 ${nBars} ${chartH}" preserveAspectRatio="none" style="height:${chartH}px">
-      ${bars}
-      <g style="font-family:-apple-system,sans-serif" transform="translate(0,${barH+2})">${labels}</g>
-    </svg>
+    <div style="position:relative">
+      <svg width="${CW}" height="${SVG_H}" style="display:block;overflow:visible">
+        <defs>
+          <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${BLUE}" stop-opacity="0.2"/>
+            <stop offset="100%" stop-color="${BLUE}" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="${areaPath}" fill="url(#${gradId})"/>
+        <polyline points="${polyPts}" fill="none" stroke="${BLUE}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        ${dotsHtml}
+        ${labelsHtml}
+        <rect id="hit-${areaId}" x="${PL}" y="${PT}" width="${plotW}" height="${plotH}" fill="transparent" style="cursor:crosshair"/>
+        <g id="tip-${areaId}" style="display:none" pointer-events="none">
+          <line id="tc-${areaId}" y1="${PT}" y2="${bot}" stroke="rgba(255,255,255,0.18)" stroke-width="1" stroke-dasharray="3,3"/>
+          <circle id="td-${areaId}" r="5" fill="${BLUE}" stroke="rgba(255,255,255,0.9)" stroke-width="1.5"/>
+          <rect id="tb-${areaId}" rx="5" ry="5" fill="rgba(14,14,14,0.95)" stroke="rgba(255,255,255,0.15)" stroke-width="0.8"/>
+          <text id="tv-${areaId}" fill="#fff" font-size="10" font-weight="700" font-family="-apple-system,sans-serif" text-anchor="middle"/>
+          <text id="tl-${areaId}" fill="rgba(255,255,255,0.5)" font-size="8" font-family="-apple-system,sans-serif" text-anchor="middle"/>
+        </g>
+      </svg>
+    </div>
   </div>`
+
+  const hitEl=document.getElementById(`hit-${areaId}`)
+  const tipEl=document.getElementById(`tip-${areaId}`)
+  const curEl=document.getElementById(`tc-${areaId}`)
+  const dotEl=document.getElementById(`td-${areaId}`)
+  const bgEl =document.getElementById(`tb-${areaId}`)
+  const valEl=document.getElementById(`tv-${areaId}`)
+  const lblEl=document.getElementById(`tl-${areaId}`)
+  let hideTimer=null
+
+  function showTip(clientX) {
+    const rect=hitEl.closest('svg').getBoundingClientRect()
+    const svgX=clientX-rect.left
+    let nearest=pts[0],minD=Infinity
+    pts.forEach(p=>{ const d=Math.abs(p.x-svgX); if(d<minD){minD=d;nearest=p} })
+    const cx=nearest.x,cy=nearest.y
+    curEl.setAttribute('x1',cx); curEl.setAttribute('x2',cx)
+    dotEl.setAttribute('cx',cx); dotEl.setAttribute('cy',cy)
+    const valStr=showDist?nearest.b.val.toFixed(1)+' km':nearest.b.val+(nearest.b.val===1?' session':' sessions')
+    const lblStr=nearest.b.label||nearest.b.start
+    valEl.textContent=valStr; lblEl.textContent=lblStr
+    const bw=Math.max(valStr.length,lblStr.length)*5.6+16, bh=28
+    let bx=cx-bw/2
+    if (bx<2) bx=2
+    if (bx+bw>CW-2) bx=CW-bw-2
+    let by=cy-bh-8
+    if (by<2) by=2
+    bgEl.setAttribute('x',bx); bgEl.setAttribute('y',by); bgEl.setAttribute('width',bw); bgEl.setAttribute('height',bh)
+    valEl.setAttribute('x',bx+bw/2); valEl.setAttribute('y',by+12)
+    lblEl.setAttribute('x',bx+bw/2); lblEl.setAttribute('y',by+bh-4)
+    tipEl.style.display=''
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer=null }
+  }
+
+  hitEl.addEventListener('pointermove',e=>{e.preventDefault();showTip(e.clientX)},{passive:false})
+  hitEl.addEventListener('pointerdown',e=>{e.preventDefault();showTip(e.clientX)},{passive:false})
+  hitEl.addEventListener('pointerleave',()=>{ hideTimer=setTimeout(()=>tipEl.style.display='none',600) })
+  hitEl.addEventListener('pointerup',  ()=>{ hideTimer=setTimeout(()=>tipEl.style.display='none',1500) })
 }
 
 // ── Activities List ──────────────────────────────────────────
