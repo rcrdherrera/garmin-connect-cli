@@ -14,7 +14,7 @@ Gate → push → watch CI → verify server. Abort at any failure.
 Run lint and tests first. If this fails, stop — do not push.
 
 ```bash
-make can-release
+export PATH="$HOME/.local/bin:$PATH" && make can-release
 ```
 
 If it fails: surface the error output and tell the user what broke. Do not proceed.
