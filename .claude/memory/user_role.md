@@ -4,7 +4,7 @@ description: User is a running coach/training analyst using Garmin data for evid
 type: user
 originSessionId: 54b17310-a221-4d30-b167-3f3f72cd5d07
 ---
-Running coach and training analyst. Goal is to access Garmin Connect data from the terminal and analyze it with Claude for:
+Running coach and training analyst. Communicates in English (not Spanish). Goal is to access Garmin Connect data from the terminal and analyze it with Claude for:
 - Running mechanics and training load analysis
 - Recovery monitoring (HRV trends, body battery, resting HR)
 - Sleep quality analysis

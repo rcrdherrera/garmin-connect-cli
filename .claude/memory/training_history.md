@@ -77,5 +77,10 @@ originSessionId: 1b0e927b-c50b-4c47-9024-2de3141888bc
 - Pre-injury baseline: 35–45km/week at ~6:00–6:20/km easy
 - Return protocol should start at ~50% volume (18–20km), short runs (5–8km), flat surfaces
 - No speedwork or hills until fully pain-free
-- Cadence work should be integrated from day 1 of return (metronome at 168–170 spm)
+- Trains by HR feel, not pace: on easy runs Ricardo targets Z2 (HR ≤162 / LT1) by feel — if a prescribed pace (e.g. 6:35–7:14/km) feels too easy and HR is still in Z2, he runs at natural Z2 pace instead. Prescribed pace ranges are estimates, not hard constraints. Never flag "above prescribed pace" as a problem if HR is in range.
+- Uses Garmin metronome on every run — cadence during continuous running is actively hitting the target. Low session averages are caused by walk intervals only, not cadence slippage.
+- PTT eccentric loading: burning sensation in the PTT/calf during eccentric calf raises is the expected tendon adaptation signal (mechanotransduction). Only flag if pain persists 30+ min after stopping or is present the next morning.
+- Cadence work integrated from day 1 of return; current working target 166–168 spm (building toward 168–172 long-term)
+- Quality sessions include walk intervals — average session cadence will appear suppressed (~142–155 spm) due to walking portions; this is normal and not a cadence failure
+- Lower body strength is always scheduled on Sundays
 - Deload weeks (50% volume) every 3–4 weeks are non-negotiable given history

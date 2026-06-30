@@ -260,36 +260,55 @@ def workout(name, desc, sport, steps, duration_secs):
 - Steps inside a `rep_group` share the same `child_id` as the group
 - Standalone steps (warmup, cooldown outside a repeat group) use `child=None`
 
-### Verified exercise names (Garmin FIT SDK)
+### Exercise names — Garmin FIT SDK
 
 **Running steps** — no category/exerciseName needed, use `run_seg()`
 
-**Strength — Lower Body**
-| Category     | Exercise Name                  | Movement                          |
-|--------------|-------------------------------|-----------------------------------|
-| HIP_RAISE    | BRIDGE                        | Glute bridge (bilateral)          |
-| HIP_RAISE    | SINGLE_LEG_HIP_RAISE          | Single-leg glute bridge           |
-| SQUAT        | SPLIT_SQUAT                   | Split squat (bodyweight)          |
-| SQUAT        | DUMBBELL_STEP_UP              | Step-up on box/chair              |
-| LUNGE        | REVERSE_LUNGE                 | Reverse lunge                     |
-| LUNGE        | WALKING_LUNGE                 | Walking lunge                     |
-| DEADLIFT     | SINGLE_LEG_BARBELL_DEADLIFT   | Single-leg RDL (bodyweight)       |
-| CALF_RAISE   | STANDING_CALF_RAISE           | Calf raise (slow eccentric)       |
+**IMPORTANT:** Do NOT invent or guess exercise names. Only use entries from the verified table below.
+For exercises not listed, set `category=None, exerciseName=None` and use the `desc` field to explain the movement.
+All entries verified by upload-then-fetch round-trip against the live Garmin API (2026-06-29).
 
-**Strength — Upper Body & Core**
-| Category     | Exercise Name                  | Movement                          |
-|--------------|-------------------------------|-----------------------------------|
-| PUSH_UP      | PUSH_UP                       | Standard push-up                  |
-| PUSH_UP      | PIKE_PUSH_UP                  | Pike push-up (shoulder dominant)  |
-| PUSH_UP      | WIDE_PUSH_UP                  | Wide-grip push-up                 |
-| PUSH_UP      | DIAMOND_PUSH_UP               | Diamond / close-grip push-up      |
-| PULL_UP      | PULL_UP                       | Pull-up (bar required)            |
-| PULL_UP      | CHIN_UP                       | Chin-up (supinated grip)          |
-| PLANK        | PLANK                         | Front plank (timed)               |
-| PLANK        | SIDE_PLANK                    | Side plank (timed, each side)     |
-| SIT_UP       | CRUNCH                        | Crunch                            |
-| SIT_UP       | BICYCLE_CRUNCH                | Bicycle crunch                    |
-| SIT_UP       | SIT_UP                        | Full sit-up                       |
+**IMPORTANT:** Do NOT invent or guess exercise names. Only use entries from the verified table below.
+For exercises not listed (or in the rejected list), set `category=None, exerciseName=None` and use the `desc` field.
+All entries verified by upload-then-fetch round-trip against the live Garmin API (2026-06-29).
+
+**Verified — Garmin accepts and round-trips these exactly**
+| Category       | Exercise Name                   | Movement                                |
+|----------------|---------------------------------|-----------------------------------------|
+| SQUAT          | DUMBBELL_STEP_UP                | Step-up with dumbbells                  |
+| SQUAT          | DUMBBELL_SPLIT_SQUAT            | Split squat with dumbbells              |
+| SQUAT          | BARBELL_BACK_SQUAT              | Back squat                              |
+| HIP_RAISE      | SINGLE_LEG_HIP_RAISE            | Single-leg glute bridge                 |
+| HIP_RAISE      | BARBELL_HIP_THRUST_ON_FLOOR     | Hip thrust on floor                     |
+| CALF_RAISE     | STANDING_CALF_RAISE             | Calf raise (use desc for eccentric cue) |
+| PUSH_UP        | PUSH_UP                         | Standard push-up                        |
+| PUSH_UP        | PIKE_PUSH_UP                    | Pike push-up (shoulder dominant)        |
+| PUSH_UP        | DIAMOND_PUSH_UP                 | Diamond / close-grip push-up            |
+| PLANK          | PLANK                           | Front plank (timed)                     |
+| PLANK          | SIDE_PLANK                      | Side plank (timed, each side)           |
+| PULL_UP        | PULL_UP                         | Pull-up                                 |
+| PULL_UP        | CHIN_UP                         | Chin-up (supinated grip)                |
+| SIT_UP         | SIT_UP                          | Full sit-up                             |
+| ROW            | FACE_PULL                       | Face pull (band or cable)               |
+| ROW            | BARBELL_ROW                     | Barbell row                             |
+| LUNGE          | WALKING_LUNGE                   | Walking lunge                           |
+| LUNGE          | ALTERNATING_DUMBBELL_LUNGE      | Alternating dumbbell lunge              |
+| DEADLIFT       | SINGLE_LEG_BARBELL_DEADLIFT     | Single-leg RDL                          |
+| DEADLIFT       | BARBELL_DEADLIFT                | Conventional deadlift                   |
+| DEADLIFT       | BARBELL_STRAIGHT_LEG_DEADLIFT   | Straight-leg deadlift / RDL             |
+| BENCH_PRESS    | BARBELL_BENCH_PRESS             | Bench press                             |
+| SHOULDER_PRESS | OVERHEAD_BARBELL_PRESS          | Overhead press                          |
+
+**Rejected — Garmin silently drops the exerciseName, stores category only. Use `category=None, exerciseName=None` instead.**
+| Category   | Exercise Name Sent          |
+|------------|-----------------------------|
+| HIP_RAISE  | BRIDGE                      |
+| CALF_RAISE | TIBIALIS_RAISE              |
+| SIT_UP     | BICYCLE_CRUNCH              |
+| SIT_UP     | CRUNCH                      |
+| ROW        | SINGLE_ARM_BENT_OVER_ROW    |
+| LUNGE      | REVERSE_LUNGE               |
+| PUSH_UP    | WIDE_PUSH_UP                |
 
 ---
 

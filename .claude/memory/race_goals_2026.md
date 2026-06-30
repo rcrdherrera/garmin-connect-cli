@@ -8,10 +8,11 @@ originSessionId: a90608d6-6302-474f-8588-3a5db040d9c2
 
 | Race | Date | Goal | Constraint |
 |------|------|------|------------|
-| XIX BBVA Mexico City Half Marathon | 2026-07-12 | Training run at Z2 — NOT racing | 8 weeks from PTT clearance, hilly course, too soon to race |
-| XLIII Telcel Mexico City Marathon | 2026-08-30 | Completion goal, Z2 first 30km | 15.5 weeks from clearance, primary A-race of the season |
+| XIX BBVA Mexico City Half Marathon | 2026-07-12 | Z2 training run — NOT racing | 8 weeks from PTT clearance, hilly course, too soon to race |
+| XLIII Telcel Mexico City Marathon | 2026-08-30 | Completion goal, Z2 throughout — NOT a PR attempt | 15.5 weeks from clearance, primary A-race of the season |
+| Backyard Ultra | 2026-09-19 | Solo, just for fun — 4–6 laps max, easy shuffle | 20 days post-marathon; PTT risk if marathon is run hard |
 
-**Why:** Half marathon is a PTT confidence check and long run opportunity within marathon build. Racing it risks re-injury 7 weeks before the A-race. Marathon is the goal — everything else is subordinate to arriving at the start line healthy.
+**Why:** This is a return year — no PRs, no racing, just healthy completion across all three events. Half marathon is a PTT confidence check within the marathon build. Marathon is the A-race but still a completion/Z2 goal, not a time goal. Backyard is a fun social event 20 days post-marathon — marathon execution directly determines how many backyard laps are safe (conservative marathon = faster recovery = more laps possible). All three events are subordinate to arriving at each start line healthy.
 
 **How to apply:** When planning any session, always ask "does this support arriving at Aug 30 healthy?" If volume, intensity, or frequency is aggressive enough to risk PTT re-aggravation, pull back.
 
@@ -70,11 +71,26 @@ originSessionId: a90608d6-6302-474f-8588-3a5db040d9c2
 - No new stress — protect the PTT
 - Sleep, nutrition, hydration priority
 
+### Phase 6 — Post-Marathon Recovery & Backyard Prep (Aug 31 – Sep 18)
+- Days 1–7: complete rest + walking only. No running. Tendons are remodeling.
+- Days 8–14: easy 20–30min jogs only if PTT silent. No volume targets.
+- Days 15–20: shuffle pace test runs. If anything hurts → DNS the backyard, no exceptions.
+- Backyard (Sep 19): 4–6 laps at easy shuffle pace. Pull out early if PTT speaks up.
+- Marathon execution is the key lever: Z2 throughout → faster recovery → safer backyard.
+
 ### Race Day (Aug 30)
 - Warm up 10–15min easy
 - Km 1–30: Z2 (HR 145–162, pace ~5:30–6:00/km at race effort)
 - Km 30–42: assess and decide — push to Z3 only if feeling good and PTT silent
 - Cadence 168+ spm throughout, especially on downhill sections km 10–25
+
+## Coaching Delivery Model
+
+- Coach loads workouts **monthly** — only the current month's sessions will be on the Garmin calendar
+- When analyzing the calendar, never flag "missing future workouts" as a concern if the current month's sessions are present
+- Garmin calendar API endpoint: `/calendar-service/year/{year}/month/{month}` (returns `calendarItems[]`)
+- The workout library (`/workout-service/workouts`) accumulates all templates ever created — contains old 2024 Galloway-style workouts; focus analysis on 2026 sessions only
+- A separate higher-intensity quality session (5×300m @ 5:35/km threshold) exists in the library for Phase 4+ — it should not appear on the calendar before Jul 13
 
 ## Key Rules for the Entire Season
 
