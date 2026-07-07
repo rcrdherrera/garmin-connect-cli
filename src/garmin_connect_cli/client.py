@@ -518,7 +518,7 @@ class GarminClient:
             date_str: Target date in YYYY-MM-DD format
 
         Returns:
-            Response containing scheduledWorkoutId
+            Response containing workoutScheduleId
         """
         self.ensure_authenticated()
         url = f"/workout-service/schedule/{workout_id}"
@@ -533,6 +533,60 @@ class GarminClient:
         self.ensure_authenticated()
         url = f"/workout-service/schedule/{scheduled_workout_id}"
         self.client.garth.request("DELETE", "connectapi", url, api=True)
+
+    def upload_workout(self, workout: dict[str, Any]) -> dict[str, Any]:
+        """Upload a new workout to the Garmin workout library.
+
+        Args:
+            workout: Workout payload, e.g. built via garmin_connect_cli.workout_builder.workout()
+
+        Returns:
+            Response containing workoutId
+        """
+        self.ensure_authenticated()
+        return self.client.upload_workout(workout)
+
+    def get_workout(self, workout_id: int) -> dict[str, Any]:
+        """Fetch a workout's full structure from the library (for round-trip verification)."""
+        self.ensure_authenticated()
+        return self.client.get_workout_by_id(workout_id)
+
+    def delete_workout(self, workout_id: int) -> None:
+        """Delete a workout template from the Garmin workout library.
+
+        Args:
+            workout_id: Workout library ID (not a scheduled instance)
+        """
+        self.ensure_authenticated()
+        url = f"/workout-service/workout/{workout_id}"
+        self.client.garth.request("DELETE", "connectapi", url, api=True)
+
+    def replace_workout(
+        self,
+        old_workout_id: int | None,
+        old_scheduled_id: int | None,
+        new_workout: dict[str, Any],
+        date_str: str,
+    ) -> dict[str, Any]:
+        """Delete an old scheduled workout + its library template, then upload and
+        schedule a replacement on the same date.
+
+        Either old_workout_id or old_scheduled_id may be None to skip that deletion
+        (e.g. when there was no previous scheduled entry yet).
+
+        Returns:
+            {"workout_id": ..., "scheduled_id": ...} for the newly uploaded workout
+        """
+        if old_scheduled_id is not None:
+            self.delete_scheduled_workout(old_scheduled_id)
+        if old_workout_id is not None:
+            self.delete_workout(old_workout_id)
+
+        result = self.upload_workout(new_workout)
+        workout_id = result.get("workoutId")
+        schedule_result = self.schedule_workout(workout_id, date_str)
+        scheduled_id = schedule_result.get("workoutScheduleId")
+        return {"workout_id": workout_id, "scheduled_id": scheduled_id}
 
     def get_activity_evaluation(self, activity_id: int) -> dict[str, Any]:
         """Get post-workout self-evaluation (feel + RPE) for a completed activity.

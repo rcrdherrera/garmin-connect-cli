@@ -9,12 +9,16 @@ metadata:
 
 ## Equipment Inventory
 
+Canonical machine-readable list: `data/my_equipment.json` — update both together.
+
 - Dumbbells: pair, up to 10kg each
 - Kettlebells: pair, up to 10kg each
 - Flat bench
 - Elastic bands (resistance bands)
 - Tibial bar (tibialis anterior raises)
 - Incline bench / slant board for feet (used with tibial bar)
+
+`src/garmin_connect_cli/workout_builder.py`'s `validate_exercise()` checks any exercise's equipment requirement (from `data/garmin_exercises_equipment.json`) against `data/my_equipment.json`'s owned list automatically — use it instead of manually cross-referencing this file when building a workout.
 
 ## No Bar
 

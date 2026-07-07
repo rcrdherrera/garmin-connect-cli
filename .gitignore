@@ -39,3 +39,7 @@ garth_tokens/
 # Claude Code local settings
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Per-session scratch script for building/uploading a workout via workout_builder.py -
+# ephemeral by design, should never be committed
+upload_session.py

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -35,6 +37,31 @@ def list_workouts(
     emit(data)
 
 
+@app.command("upload")
+@with_client
+def upload_workout(
+    client: GarminClient,
+    file: Annotated[
+        Path,
+        typer.Option(
+            "--file", "-f", help="Path to a workout JSON spec (Garmin upload_workout payload)"
+        ),
+    ],
+) -> None:
+    """Upload a workout from a JSON spec file to the Garmin workout library.
+
+    The file should contain the full Garmin workout payload, e.g. built with
+    garmin_connect_cli.workout_builder.workout() and json.dump()'d to disk.
+
+    Examples:
+        garmin-connect workouts upload --file my_workout.json
+    """
+    workout_dict = json.loads(file.read_text(encoding="utf-8"))
+    result = client.upload_workout(workout_dict)
+    workout_id = result.get("workoutId") if isinstance(result, dict) else None
+    emit_result(result, f"Uploaded workout {file.name} (workout_id={workout_id})")
+
+
 @app.command("schedule")
 @with_client
 def schedule_workout(
@@ -51,7 +78,7 @@ def schedule_workout(
         garmin-connect workouts schedule 12345678 2026-05-20
     """
     result = client.schedule_workout(workout_id, date)
-    scheduled_id = result.get("scheduledWorkoutId") if isinstance(result, dict) else None
+    scheduled_id = result.get("workoutScheduleId") if isinstance(result, dict) else None
     emit_result(
         result,
         f"Scheduled workout {workout_id} on {date} (scheduled_id={scheduled_id})",
@@ -68,7 +95,7 @@ def unschedule_workout(
 ) -> None:
     """Remove a workout from the Garmin calendar.
 
-    Note: uses the scheduledWorkoutId returned by 'workouts schedule', not the library ID.
+    Note: uses the workoutScheduleId returned by 'workouts schedule', not the library ID.
 
     Examples:
         garmin-connect workouts unschedule 87654321

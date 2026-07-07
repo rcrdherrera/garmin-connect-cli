@@ -1,0 +1,11 @@
+{
+  "owned": ["DUMBBELL", "KETTLEBELL", "BENCH", "BAND", "BOX"],
+  "notes": {
+    "DUMBBELL": "pairs, up to 10kg each",
+    "KETTLEBELL": "pairs, up to 10kg each",
+    "BENCH": "flat bench",
+    "BAND": "elastic resistance bands",
+    "BOX": "the flat bench doubles as a step-up box - Garmin tags every *_STEP_UP exercise (e.g. DUMBBELL_STEP_UP) with BOX, not BENCH, even though a bench serves the same function",
+    "other": "tibial bar + incline bench for tibialis anterior raises - not in Garmin's equipment vocabulary, use category=None/exerciseName=None with a descriptive desc instead"
+  }
+}

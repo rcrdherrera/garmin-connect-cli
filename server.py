@@ -9,6 +9,7 @@ import json
 import math
 import os
 import sqlite3
+import threading
 import time
 from collections import defaultdict
 import subprocess
@@ -20,6 +21,7 @@ from typing import Any
 
 # ── Path setup ────────────────────────────────────────────────────────────────
 REPO_ROOT = Path(__file__).parent
+sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 import anthropic
@@ -30,6 +32,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from garminconnect import Garmin
 from pydantic import BaseModel
 
+import garmin_db
 from create_workouts import (
     walk_run_protocol,
     z2_easy_run,
@@ -38,11 +41,11 @@ from create_workouts import (
     full_body_posterior_chain,
     rep_group, ex_reps, ex_time, rest, workout, STRENGTH,
 )
+from garmin_connect_cli.workout_builder import build_curated_catalog, validate_exercise
 
 # ── Config ────────────────────────────────────────────────────────────────────
-TOKEN_DIR    = Path.home() / ".config" / "garmin-connect-cli" / "tokens"
-DB_PATH      = Path.home() / ".config" / "garmin-connect-cli" / "garmin.db"
-CATALOG_PATH = REPO_ROOT / "data" / "garmin_exercises.json"
+TOKEN_DIR    = garmin_db.TOKEN_DIR
+DB_PATH      = garmin_db.DB_PATH
 SEED_FILE    = REPO_ROOT / "data" / "athlete_context_seed.md"
 SERVER_TOKEN = os.environ.get("COACH_SERVER_TOKEN", "")
 PORT         = int(os.environ.get("COACH_PORT", "8765"))
@@ -50,33 +53,71 @@ PORT         = int(os.environ.get("COACH_PORT", "8765"))
 if not SERVER_TOKEN:
     raise RuntimeError("COACH_SERVER_TOKEN environment variable must be set before starting the server")
 
+# Sonnet 5, not Opus - this is a personal coaching chat/analysis app, not a task
+# that needs the top reasoning tier. $3/$15 per MTok ($2/$10 intro through
+# 2026-08-31) vs Opus 4.8's $5/$25 - roughly 40-60% cheaper for equivalent quality
+# on this kind of conversational/analytical workload.
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5")
+
 # ── Anthropic client ──────────────────────────────────────────────────────────
 _claude = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
 
-# ── Exercise catalog (loaded once at startup from data/garmin_exercises.json) ─
-_CATALOG_SKIP = {"RUN", "RUN_INDOOR", "BIKE_OUTDOOR", "INDOOR_BIKE", "ELLIPTICAL", "STAIR_STEPPER"}
+# ── Exercise catalog (loaded once at startup, curated by equipment) ──────────
+_CATALOG_SKIP = frozenset(
+    {"RUN", "RUN_INDOOR", "BIKE_OUTDOOR", "INDOOR_BIKE", "ELLIPTICAL", "STAIR_STEPPER"}
+)
 
 # Activity type sets shared across endpoints and SQL queries
 RUN_TYPES = frozenset({"running", "treadmill_running", "track_running"})
 LOAD_TYPES = RUN_TYPES | frozenset({"strength_training", "fitness_equipment"})
 
-def _load_exercise_catalog() -> tuple[dict[str, dict], str]:
-    if not CATALOG_PATH.exists():
-        print(f"[catalog] {CATALOG_PATH} not found — dynamic workouts unavailable")
-        return {}, ""
-    with CATALOG_PATH.open() as f:
-        data = json.load(f)
-    cats = {k: v for k, v in data.get("categories", {}).items() if k not in _CATALOG_SKIP}
-    lines = [f"{cat}: {', '.join(info['exercises'].keys())}" for cat, info in sorted(cats.items())]
-    n_ex = sum(len(v["exercises"]) for v in cats.values())
-    print(f"[catalog] Loaded {len(cats)} categories, {n_ex} exercises")
-    return cats, "\n".join(lines)
 
-_exercise_catalog, _catalog_str = _load_exercise_catalog()
+def _load_exercise_catalog() -> str:
+    """Curated exercise catalog string for the coach system prompt.
 
-# ── Athlete context (DB-backed, 30-second TTL cache) ──────────────────────────
+    Built from build_curated_catalog() (garmin_connect_cli.workout_builder) - only
+    exercises that are both a real Garmin name AND compatible with the actual home
+    equipment (data/my_equipment.json). Previously this dumped the entire raw
+    exercise catalog (1,497 exercises, ~9,262 tokens, no equipment filtering at
+    all) on every /coach, /evaluate, and chat(kind="coach") call, and could
+    prompt Claude to pick equipment-incompatible exercises (barbell/pull-up-bar
+    moves the athlete can't actually do).
+    """
+    cats = build_curated_catalog(skip_categories=_CATALOG_SKIP)
+    lines = [f"{cat}: {', '.join(names)}" for cat, names in sorted(cats.items())]
+    n_ex = sum(len(names) for names in cats.values())
+    print(f"[catalog] Loaded {len(cats)} categories, {n_ex} equipment-compatible exercises")
+    return "\n".join(lines)
+
+_catalog_str = _load_exercise_catalog()
+
+# ── Athlete context (DB-backed + git-tracked memory files, 30-second TTL cache) ─
 _context_cache: tuple[float, str] | None = None
 _CONTEXT_TTL = 30.0
+
+# Athlete-specific facts curated in Claude Code sessions - same files coach.md
+# reads directly. Deliberately excludes the project/dev-process memory files in
+# .claude/memory/ (codebase_refactoring.md, dev_environment.md, feedback_*.md,
+# etc.) - those are about Claude's own working conventions, not athlete facts.
+_MEMORY_DIR = REPO_ROOT / ".claude" / "memory"
+_MEMORY_FILES = [
+    "race_goals_2026.md",
+    "training_history.md",
+    "home_gym_equipment.md",
+    "hr_zones.md",
+    "web_app_facts.md",
+]
+
+
+def _load_memory_files() -> str:
+    """Concatenate the athlete-facts memory files already checked out alongside
+    this server (no new sync mechanism needed - they're local to the process)."""
+    parts = []
+    for name in _MEMORY_FILES:
+        path = _MEMORY_DIR / name
+        if path.exists():
+            parts.append(path.read_text(encoding="utf-8").strip())
+    return "\n\n".join(parts)
 
 
 def _load_athlete_context() -> str:
@@ -88,23 +129,62 @@ def _load_athlete_context() -> str:
         conn = _open_db()
         rows = conn.execute("SELECT content FROM context_entries ORDER BY id").fetchall()
         conn.close()
-        text = "\n\n".join(r[0] for r in rows)
+        db_text = "\n\n".join(r[0] for r in rows)
     except Exception:
-        text = ""
+        db_text = ""
+    memory_text = _load_memory_files()
+    text = "\n\n".join(t for t in (memory_text, db_text) if t)
     _context_cache = (now, text)
     return text
 
 
+_context_git_lock = threading.Lock()
+
+
 def _append_to_context(fact: str, source: str = "user") -> None:
     global _context_cache
+    fact = fact.strip()
     conn = _open_db()
     conn.execute(
         "INSERT INTO context_entries (created_at, source, content) VALUES (?, ?, ?)",
-        (datetime.utcnow().isoformat(), source, fact.strip()),
+        (datetime.utcnow().isoformat(), source, fact),
     )
     conn.commit()
     conn.close()
     _context_cache = None
+    _append_and_push_fact_file(fact, source)
+
+
+def _append_and_push_fact_file(fact: str, source: str) -> None:
+    """Append to .claude/memory/web_app_facts.md and commit+push so a Claude Code
+    session on another machine can see facts remembered via the web app.
+
+    Best-effort: the context_entries DB insert above already succeeded, so a
+    failure here (no git credentials configured on this server yet, network
+    issue) is logged and swallowed rather than breaking the chat response - no
+    fact is ever lost even if this fails.
+    """
+    fact_file = _MEMORY_DIR / "web_app_facts.md"
+    with _context_git_lock:
+        try:
+            ts = datetime.utcnow().isoformat()
+            with fact_file.open("a", encoding="utf-8") as f:
+                f.write(f"\n- [{ts}] ({source}) {fact}\n")
+            subprocess.run(
+                ["git", "add", str(fact_file)],
+                cwd=str(REPO_ROOT), check=True, capture_output=True, timeout=10,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", f"remember: {fact[:72]}"],
+                cwd=str(REPO_ROOT), check=True, capture_output=True, timeout=10,
+            )
+            subprocess.run(
+                ["git", "push"],
+                cwd=str(REPO_ROOT), check=True, capture_output=True, timeout=15,
+            )
+            print(f"[context] Pushed fact to web_app_facts.md: {fact[:60]}")
+        except Exception as exc:
+            print(f"[context] Could not commit/push web_app_facts.md (fact still saved to DB): {exc}")
 
 
 def _seed_context_if_empty() -> None:
@@ -285,7 +365,7 @@ def _rows(rows) -> list[dict]:
 # ── Claude helper ─────────────────────────────────────────────────────────────
 def _ask_claude(system: str, prompt: str, max_tokens: int = 2048) -> str:
     resp = _claude.messages.create(
-        model="claude-opus-4-8",
+        model=CLAUDE_MODEL,
         max_tokens=max_tokens,
         system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
@@ -293,7 +373,14 @@ def _ask_claude(system: str, prompt: str, max_tokens: int = 2048) -> str:
     return resp.content[0].text
 
 
-def _coach_system() -> str:
+def _coach_system(include_catalog: bool = True) -> str:
+    """System prompt for coach-related calls.
+
+    include_catalog=False drops the exercise catalog (~5,700 tokens) for calls
+    that don't select exercises - narrating an already-built session (the
+    /coach brief) or evaluating a completed run (/evaluate) never needs it,
+    only the tool-use call that actually picks exercises does.
+    """
     system = f"""You are a world-class running coach and sports scientist. Athlete permanent context:
 
 {_load_athlete_context()}
@@ -309,7 +396,7 @@ Always apply:
 - Cadence 168-172 spm on every run — non-negotiable for PTT recovery
 - 10% weekly volume increase cap — never exceed even if feeling great"""
 
-    if _catalog_str:
+    if include_catalog and _catalog_str:
         system += f"""
 
 GARMIN EXERCISE CATALOG — when designing strength workouts, use ONLY these exact category/exercise_name keys. Garmin rejects any key not in this list.
@@ -379,7 +466,7 @@ def _design_dynamic_workout(session_type: str, readiness: int | None) -> dict:
         intensity = "RECOVERY — minimal load, bodyweight only, prioritise mobility"
 
     resp = _claude.messages.create(
-        model="claude-opus-4-8",
+        model=CLAUDE_MODEL,
         max_tokens=1024,
         system=[{"type": "text", "text": _coach_system(), "cache_control": {"type": "ephemeral"}}],
         tools=[_WORKOUT_TOOL],
@@ -428,10 +515,20 @@ def _tool_input_to_garmin(tool_input: dict) -> dict:
         note = (ex.get("note") or "")[:120]
         sets = ex["sets"]
 
+        category, name = ex["category"], ex["exercise_name"]
+        warnings = validate_exercise(category, name)
+        if warnings:
+            # Defense-in-depth: the coach system prompt's catalog is already curated
+            # to equipment-compatible exercises (see _load_exercise_catalog), so this
+            # should rarely fire - but Claude can still hallucinate a plausible-but-
+            # wrong name. Fail safe rather than trust the tool call blindly.
+            print(f"[workout] rejecting {category}/{name}: {warnings[0]}")
+            category, name = None, None
+
         inner = (
-            ex_reps(o, gid, reps, ex["category"], ex["exercise_name"], note)
+            ex_reps(o, gid, reps, category, name, note)
             if reps
-            else ex_time(o, gid, secs or 30, ex["category"], ex["exercise_name"], note)
+            else ex_time(o, gid, secs or 30, category, name, note)
         )
         o += 1
         steps.append(rep_group(rg_o, gid, sets, [inner, rest(o, gid)]))
@@ -447,41 +544,16 @@ def _tool_input_to_garmin(tool_input: dict) -> dict:
 
 # ── Conversation table bootstrap (idempotent) ─────────────────────────────────
 def _ensure_tables() -> None:
-    """Create all server-managed tables if they don't exist yet."""
-    conn = _open_db()
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS conversations (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            kind        TEXT NOT NULL,
-            title       TEXT,
-            created_at  TEXT NOT NULL,
-            updated_at  TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS messages (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            conversation_id INTEGER NOT NULL,
-            role            TEXT NOT NULL,
-            content         TEXT NOT NULL,
-            created_at      TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_messages_conv
-            ON messages (conversation_id, id);
-        CREATE INDEX IF NOT EXISTS idx_conversations_kind
-            ON conversations (kind, updated_at);
-        CREATE TABLE IF NOT EXISTS context_entries (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            created_at TEXT NOT NULL,
-            source     TEXT NOT NULL DEFAULT 'user',
-            content    TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS training_plan (
-            id         INTEGER PRIMARY KEY,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            plan_json  TEXT NOT NULL
-        );
-    """)
-    conn.commit()
+    """Create all tables (Garmin-data + server-managed) if they don't exist yet.
+
+    Single-sourced from garmin_db.connect(), which applies the full SCHEMA
+    (health_daily/training_daily/activities/weight AND conversations/messages/
+    context_entries/training_plan) plus migrations. Previously this duplicated
+    just the server-managed tables here and relied on the background poller's
+    first `garmin_db.py sync` subprocess to have already created the Garmin
+    tables - a race that's now closed.
+    """
+    conn = garmin_db.connect()
     conn.close()
     _seed_context_if_empty()
 
@@ -1074,78 +1146,35 @@ class AnalyzeRequest(BaseModel):
     #                 YYYY, YYYY-MM, YYYY-MM-DD:YYYY-MM-DD, YYYY-MM-DD
 
 
-def _resolve_period(period: str) -> tuple[str, str]:
-    today = date.today()
-    match period:
-        case "week":
-            return (today - timedelta(days=today.weekday())).isoformat(), today.isoformat()
-        case "last-week":
-            end = today - timedelta(days=today.weekday() + 1)
-            return (end - timedelta(days=6)).isoformat(), end.isoformat()
-        case "month":
-            return date(today.year, today.month, 1).isoformat(), today.isoformat()
-        case "last-month":
-            first_this = date(today.year, today.month, 1)
-            last_prev = first_this - timedelta(days=1)
-            return date(last_prev.year, last_prev.month, 1).isoformat(), last_prev.isoformat()
-        case "year":
-            return date(today.year, 1, 1).isoformat(), today.isoformat()
-        case _:
-            if ":" in period:
-                s, e = period.split(":", 1)
-                return s, e
-            if len(period) == 7:  # YYYY-MM
-                import calendar
-                y, m = int(period[:4]), int(period[5:])
-                return f"{period}-01", f"{period}-{calendar.monthrange(y, m)[1]:02d}"
-            if len(period) == 4:  # YYYY
-                return f"{period}-01-01", f"{period}-12-31"
-            return period, period  # single day
-
-
 @app.post("/analyze", dependencies=[AUTH])
 def analyze(req: AnalyzeRequest):
-    """Science-based analysis of a training period using the SQLite DB."""
-    start, end = _resolve_period(req.period)
+    """Science-based analysis of a training period.
+
+    Uses garmin_db.compute_period_analysis() for the aggregation - Claude receives
+    pre-computed metrics (HR-zone %, cadence distribution, correlations, etc.) and
+    a short flagged-days list, not raw per-day rows, so the prompt size no longer
+    scales with period length the way a raw JSON dump did.
+    """
+    try:
+        start, end = garmin_db._resolve_period(req.period, date.today())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     conn = _db()
-
-    health = _rows(conn.execute("""
-        SELECT date, hrv_last_night_avg, hrv_weekly_avg, hrv_status,
-               sleep_score, sleep_duration_s, sleep_deep_s, sleep_rem_s,
-               rhr, body_battery_high, body_battery_low
-        FROM health_daily WHERE date BETWEEN ? AND ? ORDER BY date
-    """, (start, end)).fetchall())
-
-    training = _rows(conn.execute("""
-        SELECT date, readiness_score, readiness_level, readiness_feedback, acute_load
-        FROM training_daily WHERE date BETWEEN ? AND ? ORDER BY date
-    """, (start, end)).fetchall())
-
-    if req.activity_type:
-        activities = _rows(conn.execute("""
-            SELECT start_time_local, activity_name, activity_type,
-                   distance_m, duration_s, avg_hr, max_hr, avg_cadence,
-                   aerobic_te, training_load,
-                   hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s
-            FROM activities
-            WHERE start_time_local BETWEEN ? AND ?
-              AND activity_type LIKE ?
-            ORDER BY start_time_local DESC
-        """, (f"{start}T00:00:00", f"{end}T23:59:59", f"%{req.activity_type}%")).fetchall())
-    else:
-        activities = _rows(conn.execute("""
-            SELECT start_time_local, activity_name, activity_type,
-                   distance_m, duration_s, avg_hr, max_hr, avg_cadence,
-                   aerobic_te, training_load,
-                   hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s
-            FROM activities
-            WHERE start_time_local BETWEEN ? AND ?
-            ORDER BY start_time_local DESC
-        """, (f"{start}T00:00:00", f"{end}T23:59:59")).fetchall())
-
+    result = garmin_db.compute_period_analysis(conn, start, end)
     conn.close()
 
-    if not health and not activities:
+    activities = result["daily_rows"]["activities"]
+    if req.activity_type:
+        activities = [
+            a for a in activities if req.activity_type.lower() in (a["activity_type"] or "").lower()
+        ]
+
+    flagged_days = garmin_db.flag_outlier_days(
+        result["daily_rows"]["health"], result["daily_rows"]["training"]
+    )
+
+    if not result["daily_rows"]["health"] and not activities:
         print(f"[analyze] WARNING: no health or activity data found for {start} to {end}")
 
     system = f"""You are a sports scientist and performance analyst.
@@ -1161,16 +1190,24 @@ Apply Kiviniemi HRV protocol, Gabbett ACWR, Seiler polarization, Heiderscheit ca
 FORMAT RULES: No emojis. No bullet-heavy lists. Use em-dash section headers. Be direct and specific.
 Write for an athlete who wants honest numbers and clear direction, not encouragement."""
 
+    activity_section = (
+        f"ACTIVITIES (filtered: {req.activity_type}):\n{json.dumps(activities, indent=2)}"
+        if req.activity_type
+        else ""
+    )
+
     prompt = f"""Analyze training period: {start} to {end}
 
-HEALTH (daily):
-{json.dumps(health, indent=2)}
-
-TRAINING READINESS (daily):
-{json.dumps(training, indent=2)}
-
-ACTIVITIES:
-{json.dumps(activities, indent=2)}
+SLEEP: {json.dumps(result.get("sleep"), indent=2)}
+HRV: {json.dumps(result.get("hrv"), indent=2)}
+READINESS: {json.dumps(result.get("readiness"), indent=2)}
+RUNNING: {json.dumps(result.get("running"), indent=2)}
+STRENGTH: {json.dumps(result.get("strength"), indent=2)}
+BODY BATTERY: {json.dumps(result.get("body_battery"), indent=2)}
+WEEKLY SUBTOTALS: {json.dumps(result.get("weekly_subtotals"), indent=2)}
+CORRELATIONS: {json.dumps(result.get("correlations"), indent=2)}
+FLAGGED DAYS (dates worth citing by name): {json.dumps(flagged_days, indent=2)}
+{activity_section}
 
 Use this exact format:
 
@@ -1190,7 +1227,7 @@ Use this exact format:
 [cadence numbers, pace/HR relationship, phase compliance]
 
 — RED FLAGS —
-[anything violating phase rules or signaling injury risk — state "None" if clean]
+[anything violating phase rules or signaling injury risk, citing FLAGGED DAYS dates where relevant — state "None" if clean]
 
 — VERDICT —
 [one sentence period rating]
@@ -1403,7 +1440,8 @@ Use this exact format. No emojis. Be direct:
 — RED FLAGS —
 [exact conditions to stop or pull back — be specific about HR numbers, pain signals]"""
 
-    brief = _ask_claude(_coach_system(), prompt, max_tokens=2048)
+    # Narrating an already-built/uploaded session, not selecting exercises - no catalog needed
+    brief = _ask_claude(_coach_system(include_catalog=False), prompt, max_tokens=2048)
 
     # Persist to conversation history — reuse existing conv on upload to avoid duplicates
     session_label = req.type.replace("-", " ").title()
@@ -1628,7 +1666,7 @@ KEY CUE: [one specific thing to focus on next run]"""
         "activity_id": aid,
         "date": act_date,
         "metrics": metrics,
-        "report": _ask_claude(_coach_system(), prompt, max_tokens=1024),
+        "report": _ask_claude(_coach_system(include_catalog=False), prompt, max_tokens=1024),
     }
 
 
@@ -1673,7 +1711,7 @@ def chat(req: ChatRequest):
     reply_text = ""
     while True:
         resp = _claude.messages.create(
-            model="claude-opus-4-8",
+            model=CLAUDE_MODEL,
             max_tokens=1024,
             system=system_block,
             tools=[_REMEMBER_TOOL],

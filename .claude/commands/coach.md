@@ -17,8 +17,13 @@ User invoked with: `$ARGUMENTS`
 Fire all of these at once — memory reads and API calls are fully independent:
 
 ```
-Read: ~/.config/garmin-connect-cli/athlete_context.md
+Read: .claude/memory/race_goals_2026.md
+Read: .claude/memory/training_history.md
+Read: .claude/memory/home_gym_equipment.md
+Read: .claude/memory/hr_zones.md
+Read: .claude/memory/web_app_facts.md
 ```
+These are the same files `server.py`'s `_load_athlete_context()` reads for the web app's coach/chat prompts — both consumers converge on one set instead of drifting. `web_app_facts.md` is an append-only log auto-committed by the web app's `remember_fact` tool/`/remember` endpoint; read it too so facts remembered via chat are visible here.
 
 ```bash
 uv run garmin-connect training readiness
@@ -150,165 +155,64 @@ Then apply the matching phase from `race_goals_2026.md`. Summary:
 
 ## Step 4 — Build the Workouts (Python)
 
-Write a Python script at `~/GitHub/garmin-connect-cli/upload_session.py` using the patterns below. Then run it.
+Write a short Python script at `~/GitHub/garmin-connect-cli/upload_session.py` (this file is gitignored — it's a per-session scratch file, not something to commit). It should contain only the actual exercise content for this session; all boilerplate lives in `workout_builder.py`.
 
 ### Authentication
 
-Always use the GarminClient wrapper — it has a working `schedule_workout()` method.
+Always use the GarminClient wrapper — it has working `upload_workout()`/`schedule_workout()`/`replace_workout()` methods.
 Do NOT use `garminconnect.Garmin()` directly; its schedule response does not parse correctly.
 
 ```python
 import sys
+from pathlib import Path
 sys.path.insert(0, str(Path.home() / "GitHub" / "garmin-connect-cli" / "src"))
-from garmin_connect_cli.client import GarminClient
-from garmin_connect_cli.config import Config
+from garmin_connect_cli.client import get_client
+from garmin_connect_cli.workout_builder import (
+    STRENGTH, RUNNING, STEP_WARMUP, STEP_COOLDOWN,
+    ex_reps, ex_reps_w, ex_time, rest, run_seg, workout,
+    StepSequencer, validate_exercise,
+)
 
-config = Config.load()
-client = GarminClient(config)
+client = get_client()
 client.ensure_authenticated()
 ```
 
-### Shared primitives (always include)
+All primitives (`ex_reps`, `ex_reps_w`, `ex_time`, `rest`, `run_seg`, `rep_group`, `workout`, the sport/step-type/condition dict constants) live in `src/garmin_connect_cli/workout_builder.py` — import them, don't re-paste them.
+
+### stepOrder and childStepId — use `StepSequencer`, don't hand-count
 
 ```python
-# Sport types
-STRENGTH = {"sportTypeId": 5, "sportTypeKey": "strength_training", "displayOrder": 5}
-RUNNING  = {"sportTypeId": 1, "sportTypeKey": "running",           "displayOrder": 1}
+seq = StepSequencer()
+steps = [seq.standalone(lambda o: run_seg(o, STEP_WARMUP, 300, "Dynamic warmup..."))]
 
-# End conditions
-REPS_COND = {"conditionTypeId": 10, "conditionTypeKey": "reps",       "displayOrder": 10, "displayable": True}
-TIME_COND = {"conditionTypeId": 2,  "conditionTypeKey": "time",       "displayOrder": 2,  "displayable": True}
-LAP_COND  = {"conditionTypeId": 1,  "conditionTypeKey": "lap.button", "displayOrder": 1,  "displayable": True}
-ITER_COND = {"conditionTypeId": 7,  "conditionTypeKey": "iterations", "displayOrder": 7,  "displayable": False}
+steps.append(seq.block(3, lambda o, c: [
+    ex_reps(o(), c, 12, "PUSH_UP", "PUSH_UP", "Standard push-up"),
+    rest(o(), c),
+    ex_reps_w(o(), c, 10, None, None, 10.0, "Single-arm DB row, bench-supported"),
+    rest(o(), c),
+]))
 
-# Targets
-NO_TARGET = {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target", "displayOrder": 1}
+steps.append(seq.standalone(lambda o: run_seg(o, STEP_COOLDOWN, 180, "Cooldown...")))
+```
+`seq.block(sets, steps_fn)` wraps `steps_fn`'s output in one rep_group and handles all order/child-id bookkeeping — never hand-increment counters.
 
-# Step types
-STEP_WARMUP   = {"stepTypeId": 1, "stepTypeKey": "warmup",   "displayOrder": 1}
-STEP_COOLDOWN = {"stepTypeId": 2, "stepTypeKey": "cooldown", "displayOrder": 2}
-STEP_INTERVAL = {"stepTypeId": 3, "stepTypeKey": "interval", "displayOrder": 3}
-STEP_RECOVERY = {"stepTypeId": 4, "stepTypeKey": "recovery", "displayOrder": 4}
-STEP_REST     = {"stepTypeId": 5, "stepTypeKey": "rest",     "displayOrder": 5}
-STEP_REPEAT   = {"stepTypeId": 6, "stepTypeKey": "repeat",   "displayOrder": 6}
+### Exercise names AND equipment — validate every exercise before using it
 
-NULL_STROKE = {"strokeTypeId": 0, "strokeTypeKey": None, "displayOrder": 0}
-NULL_EQUIP  = {"equipmentTypeId": 0, "equipmentTypeKey": None, "displayOrder": 0}
-KG_UNIT     = {"unitId": 8, "unitKey": "kilogram", "factor": 1000.0}
+**IMPORTANT:** Do NOT invent or guess exercise names, and do NOT assume an exercise is usable just because Garmin accepts the name — check equipment separately. Call `validate_exercise(category, name)` for every `(cat, name)` pair before building the step:
 
-
-def _base_step(order, child, step_type, end_cond, end_val, target, desc, cat, name, weight):
-    return {
-        "type": "ExecutableStepDTO",
-        "stepOrder": order, "stepType": step_type, "childStepId": child,
-        "description": desc, "endCondition": end_cond, "endConditionValue": float(end_val),
-        "preferredEndConditionUnit": None, "endConditionCompare": None,
-        "targetType": target,
-        "targetValueOne": None, "targetValueTwo": None, "targetValueUnit": None,
-        "zoneNumber": None,
-        "secondaryTargetType": None, "secondaryTargetValueOne": None,
-        "secondaryTargetValueTwo": None, "secondaryTargetValueUnit": None,
-        "secondaryZoneNumber": None, "endConditionZone": None,
-        "strokeType": NULL_STROKE, "equipmentType": NULL_EQUIP,
-        "category": cat, "exerciseName": name,
-        "workoutProvider": None, "providerExerciseSourceId": None,
-        "weightValue": weight, "weightUnit": KG_UNIT if weight is not None else None,
-    }
-
-def ex_reps(order, child, reps, cat, name, desc=""):
-    """Bodyweight strength exercise, rep-counted."""
-    return _base_step(order, child, STEP_INTERVAL, REPS_COND, reps, NO_TARGET, desc, cat, name, -1.0)
-
-def ex_reps_w(order, child, reps, cat, name, weight_kg, desc=""):
-    """Weighted strength exercise, rep-counted. weight_kg = total load (e.g. 20.0 for 2×10kg KBs)."""
-    return _base_step(order, child, STEP_INTERVAL, REPS_COND, reps, NO_TARGET, desc, cat, name, weight_kg)
-
-def ex_time(order, child, secs, cat, name, desc=""):
-    """Time-based exercise (plank, hold)."""
-    return _base_step(order, child, STEP_INTERVAL, TIME_COND, secs, NO_TARGET, desc, cat, name, -1.0)
-
-def rest(order, child):
-    """Rest between sets — press lap to continue."""
-    return _base_step(order, child, STEP_REST, LAP_COND, 0.0, NO_TARGET, "", None, None, -1.0)
-
-def run_seg(order, step_type, secs, desc="", child=None):
-    """Running segment (warmup / interval / recovery / cooldown)."""
-    return _base_step(order, child, step_type, TIME_COND, secs, NO_TARGET, desc, None, None, None)
-
-def rep_group(order, child_id, iters, inner_steps):
-    """N sets of the inner steps. child_id increments per exercise block."""
-    return {
-        "type": "RepeatGroupDTO",
-        "stepOrder": order, "stepType": STEP_REPEAT, "childStepId": child_id,
-        "numberOfIterations": iters, "workoutSteps": inner_steps,
-        "endCondition": ITER_COND, "endConditionValue": float(iters),
-        "smartRepeat": False,
-    }
-
-def workout(name, desc, sport, steps, duration_secs):
-    return {
-        "workoutName": name, "description": desc, "sportType": sport,
-        "estimatedDurationInSecs": duration_secs,
-        "workoutSegments": [{"segmentOrder": 1, "sportType": sport, "workoutSteps": steps}],
-    }
+```python
+warnings = validate_exercise("PUSH_UP", "PUSH_UP")
+if warnings:
+    print(warnings)  # fall back to category=None, name=None + a descriptive desc
 ```
 
-### stepOrder and childStepId rules
+This checks two things in one call, both against committed data files (not memory you have to recall):
+1. **Name validity** — is `(category, name)` in Garmin's own exercise catalog (`data/garmin_exercises_equipment.json`)? If not, Garmin silently drops the exerciseName on upload (keeps category only) — fall back to `category=None, name=None`.
+2. **Equipment** — does the exercise's required equipment appear in `data/my_equipment.json`'s owned list (DB/KB pairs to 10kg, bench, bands — no barbell, no pull-up bar)? If not, fall back the same way.
 
-- `stepOrder` is **globally sequential** across the entire workout (never reset between exercises)
-- Each `rep_group` gets its own `child_id` (1, 2, 3, …) — increment per exercise block
-- Steps inside a `rep_group` share the same `child_id` as the group
-- Standalone steps (warmup, cooldown outside a repeat group) use `child=None`
+A warning is a strong signal but use judgment on the equipment axis specifically — see the `validate_exercise` docstring for the FACE_PULL/band example (Garmin tags it `CABLE_MACHINE` even though a resistance band is a standard real-world substitute for that exact movement). A not-in-catalog warning has no such ambiguity and should always trigger the fallback.
 
-### Exercise names — Garmin FIT SDK
-
-**Running steps** — no category/exerciseName needed, use `run_seg()`
-
-**IMPORTANT:** Do NOT invent or guess exercise names. Only use entries from the verified table below.
-For exercises not listed, set `category=None, exerciseName=None` and use the `desc` field to explain the movement.
-All entries verified by upload-then-fetch round-trip against the live Garmin API (2026-06-29).
-
-**IMPORTANT:** Do NOT invent or guess exercise names. Only use entries from the verified table below.
-For exercises not listed (or in the rejected list), set `category=None, exerciseName=None` and use the `desc` field.
-All entries verified by upload-then-fetch round-trip against the live Garmin API (2026-06-29).
-
-**Verified — Garmin accepts and round-trips these exactly**
-| Category       | Exercise Name                   | Movement                                |
-|----------------|---------------------------------|-----------------------------------------|
-| SQUAT          | DUMBBELL_STEP_UP                | Step-up with dumbbells                  |
-| SQUAT          | DUMBBELL_SPLIT_SQUAT            | Split squat with dumbbells              |
-| SQUAT          | BARBELL_BACK_SQUAT              | Back squat                              |
-| HIP_RAISE      | SINGLE_LEG_HIP_RAISE            | Single-leg glute bridge                 |
-| HIP_RAISE      | BARBELL_HIP_THRUST_ON_FLOOR     | Hip thrust on floor                     |
-| CALF_RAISE     | STANDING_CALF_RAISE             | Calf raise (use desc for eccentric cue) |
-| PUSH_UP        | PUSH_UP                         | Standard push-up                        |
-| PUSH_UP        | PIKE_PUSH_UP                    | Pike push-up (shoulder dominant)        |
-| PUSH_UP        | DIAMOND_PUSH_UP                 | Diamond / close-grip push-up            |
-| PLANK          | PLANK                           | Front plank (timed)                     |
-| PLANK          | SIDE_PLANK                      | Side plank (timed, each side)           |
-| PULL_UP        | PULL_UP                         | Pull-up                                 |
-| PULL_UP        | CHIN_UP                         | Chin-up (supinated grip)                |
-| SIT_UP         | SIT_UP                          | Full sit-up                             |
-| ROW            | FACE_PULL                       | Face pull (band or cable)               |
-| ROW            | BARBELL_ROW                     | Barbell row                             |
-| LUNGE          | WALKING_LUNGE                   | Walking lunge                           |
-| LUNGE          | ALTERNATING_DUMBBELL_LUNGE      | Alternating dumbbell lunge              |
-| DEADLIFT       | SINGLE_LEG_BARBELL_DEADLIFT     | Single-leg RDL                          |
-| DEADLIFT       | BARBELL_DEADLIFT                | Conventional deadlift                   |
-| DEADLIFT       | BARBELL_STRAIGHT_LEG_DEADLIFT   | Straight-leg deadlift / RDL             |
-| BENCH_PRESS    | BARBELL_BENCH_PRESS             | Bench press                             |
-| SHOULDER_PRESS | OVERHEAD_BARBELL_PRESS          | Overhead press                          |
-
-**Rejected — Garmin silently drops the exerciseName, stores category only. Use `category=None, exerciseName=None` instead.**
-| Category   | Exercise Name Sent          |
-|------------|-----------------------------|
-| HIP_RAISE  | BRIDGE                      |
-| CALF_RAISE | TIBIALIS_RAISE              |
-| SIT_UP     | BICYCLE_CRUNCH              |
-| SIT_UP     | CRUNCH                      |
-| ROW        | SINGLE_ARM_BENT_OVER_ROW    |
-| LUNGE      | REVERSE_LUNGE               |
-| PUSH_UP    | WIDE_PUSH_UP                |
+Tibialis-anterior raises (tibial bar + incline bench) aren't in Garmin's equipment vocabulary at all — always use `category=None, name=None` with a descriptive `desc` for those.
 
 ---
 
@@ -319,19 +223,26 @@ After generating the script, upload each workout, schedule it to the calendar, a
 ### 6a — Upload workouts
 
 ```python
-result = client.client.upload_workout(workout_dict)
+result = client.upload_workout(workout_dict)
 workout_id = result.get("workoutId")
 print("Uploaded:", workout_id)
 ```
 
 ### 6b — Schedule each workout to its target date
 
-Use the wrapper method — it parses the response correctly:
-
 ```python
 schedule_result = client.schedule_workout(workout_id, "YYYY-MM-DD")
 scheduled_id = schedule_result.get("workoutScheduleId")
 print("Scheduled ID:", scheduled_id)
+```
+
+### 6b-alt — Replacing an already-scheduled workout
+
+If correcting a previously-uploaded session (e.g. an equipment mistake caught after the fact), use `replace_workout` instead of manually deleting then re-uploading:
+
+```python
+result = client.replace_workout(old_workout_id, old_scheduled_id, new_workout_dict, "YYYY-MM-DD")
+print("New workout_id:", result["workout_id"], "scheduled_id:", result["scheduled_id"])
 ```
 
 **Date assignment rules for `weekly` plans:**

@@ -37,45 +37,32 @@ Always state the resolved date range at the top of your output.
 ## Step 2 — Query the Database
 
 DB path: `C:\Users\ricar\.config\garmin-connect-cli\garmin.db`
-Python: `C:\garmin-connect-cli\.venv\Scripts\python.exe`
+Python: `C:\Users\ricar\Github\garmin-connect-cli\.venv\Scripts\python.exe`
 
-Write a Python script to `C:\Users\ricar\AppData\Local\Temp\garmin_analyze.py` and execute it. Always use `PowerShell` to write + run the script (not Bash). Use `$script | Out-File -FilePath ... -Encoding utf8` then `& "C:\garmin-connect-cli\.venv\Scripts\python.exe" ...`
-
-Always use a heredoc-style temp file, never inline Python with -c (f-strings break in PowerShell heredocs).
-
-> **IMPORTANT — DB may be stale.** The SQLite DB syncs on the Ubuntu server and is not auto-synced to Windows. Always check the most recent date in the DB first:
+> **IMPORTANT — DB may be stale.** Always check the most recent date in the DB first:
 > ```sql
 > SELECT MAX(date) FROM health_daily;
 > SELECT MAX(start_time_local) FROM activities;
 > ```
-> If the DB lags more than 3 days behind `currentDate`, **skip the DB entirely and use the live Garmin API** (see Live API Fallback below).
+> If the DB lags more than 3 days behind `currentDate`, run `uv run python garmin_db.py sync` to backfill the gap first (it finds the oldest last-synced date across tables automatically — no need to guess a `--since`). Only fall back to the live API below if sync itself fails (e.g. auth issue).
 
-### Queries to run (adapt to available data for the period)
+### Run the analysis command
 
-**Health metrics** — from `health_daily` WHERE date BETWEEN start AND end:
-```sql
-SELECT date, hrv_last_night_avg, hrv_weekly_avg, hrv_status, hrv_baseline_low, hrv_baseline_high,
-       sleep_score, sleep_duration_s, sleep_deep_s, sleep_rem_s, sleep_light_s, sleep_awake_s,
-       rhr, body_battery_high, body_battery_low
+All derived-metric computation (sleep/HRV/readiness/running/strength/body-battery aggregates, HR-zone %, cadence histograms, weekly subtotals, cross-metric correlations) lives in `garmin_db.py`'s `analyze` subcommand — don't hand-write a query/aggregation script:
+
+```powershell
+uv run python garmin_db.py analyze --since <START_DATE> --until <END_DATE> --format json
 ```
 
-**Training readiness** — from `training_daily` WHERE date BETWEEN start AND end:
-```sql
-SELECT date, readiness_score, readiness_level, readiness_feedback, acute_load, hrv_weekly_avg
-```
+Or pass the resolved period name directly (mirrors the Step 1 table exactly): `--period week`, `--period last-month`, `--period 2025-11`, etc. `--metrics` narrows to a comma list (`sleep,hrv,readiness,running,strength,body_battery,correlations`) if you only need part of the picture; default is `all`.
 
-**Activities** — from `activities` WHERE start_time_local BETWEEN start AND end+1day:
-```sql
-SELECT start_time_local, activity_name, activity_type, distance_m, duration_s,
-       avg_hr, max_hr, avg_cadence, aerobic_te, anaerobic_te, training_load,
-       avg_gct_ms, avg_stride_m, hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s
-```
+The JSON output includes both the computed aggregates per metric group and the raw per-day rows (under `daily_rows`) — use the raw rows when Step 3 needs to cite or investigate a specific day (e.g. "flag days with all-systems-stress").
 
-### Live API Fallback (use when DB is stale)
+### Live API Fallback (use only if `garmin_db.py sync` fails)
 
 ```python
 import sys
-sys.path.insert(0, r"C:\garmin-connect-cli\src")
+sys.path.insert(0, r"C:\Users\ricar\Github\garmin-connect-cli\src")
 from garmin_connect_cli.client import get_client
 
 client = get_client()
@@ -105,52 +92,6 @@ Per-day calls available on `client`:
 | `avg_stride_m` | `avgStrideLength` |
 | `hr_z1_s … hr_z5_s` | `hrTimeInZone_1 … hrTimeInZone_5` |
 | pace | derived: `1000 / averageSpeed` (m/s → s/km) |
-
-**Output encoding:** When using `Tee-Object` to save the script output, PowerShell writes UTF-16. Always read it back with `encoding="utf-16"` in Python, or pipe through a separate re-encode step before parsing JSON.
-
-### Compute these derived metrics in Python:
-
-**Sleep:**
-- avg_sleep_score, avg_total_h, avg_deep_h, avg_rem_h, avg_awake_min
-- deep_pct = deep_h / total_h * 100
-- rem_pct = rem_h / total_h * 100
-- nights_below_7h, nights_score_under_70
-
-**HRV:**
-- avg_hrv, min_hrv, max_hrv, hrv_std
-- days BALANCED / UNBALANCED / LOW
-- hrv_trend: compare first half vs second half of period
-- nights where HRV < (baseline_low - 5) → flag as stress events
-
-**Readiness:**
-- avg_readiness, min_readiness, max_readiness
-- days PRIME (80+), OPTIMAL (60-79), MAINTENANCE (40-59), RECOVERY (<40)
-- avg_acute_load
-
-**Running (filter activity_type IN ('running','treadmill_running')):**
-- total_km, total_runs, avg_weekly_km
-- avg_hr, avg_cadence, avg_pace_per_km (from avg_speed_ms: 1000/speed/60)
-- avg_aerobic_te, avg_training_load
-- HR zone distribution (% time in Z1-Z5 over total zone time)
-- cadence_distribution: count by bucket (<150, 150-154, 155-159, 160-164, 165-169, 170-174, 175+)
-- longest_run_km, hardest_load_session
-
-**Strength training:**
-- total_strength_sessions
-- avg_load, total_load
-
-**Body Battery:**
-- avg_daily_high, avg_daily_low
-- bb_range (high - low = daily energy expenditure proxy)
-- days where bb_high < 60 (poor recovery signal)
-
-**Cross-metric correlations (compute if N >= 7):**
-- HRV vs next-day readiness (shift readiness by 1 day)
-- Sleep score vs HRV same night
-- Deep sleep (h) vs HRV
-- Body Battery high vs readiness
-
-If the period is a full month or longer, also compute weekly subtotals for: run_km, avg_hrv, avg_sleep_score, avg_readiness.
 
 ---
 

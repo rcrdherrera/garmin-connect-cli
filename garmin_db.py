@@ -12,13 +12,19 @@ Usage:
     uv run python garmin_db.py sync --since 2026-01-01  # From a specific date
     uv run python garmin_db.py stats                    # DB summary
     uv run python garmin_db.py query "SELECT ..."       # Raw SQL
+    uv run python garmin_db.py analyze --period week --format table
+    uv run python garmin_db.py analyze --since 2026-05-25 --until 2026-07-06 --format json
 """
 
 import argparse
+import contextlib
 import json
+import re
 import sqlite3
+import statistics
 import sys
 import time
+from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -31,11 +37,11 @@ console = Console()
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
-TOKEN_DIR  = Path.home() / ".config" / "garmin-connect-cli" / "tokens"
-DB_PATH    = Path.home() / ".config" / "garmin-connect-cli" / "garmin.db"
-SYNC_START = date(2024, 5, 1)   # Garmin API retention limit (~2 years)
-API_DELAY  = 0.3                # Seconds between per-day API calls
-RUN_TYPES  = frozenset({"running", "treadmill_running", "track_running"})
+TOKEN_DIR = Path.home() / ".config" / "garmin-connect-cli" / "tokens"
+DB_PATH = Path.home() / ".config" / "garmin-connect-cli" / "garmin.db"
+SYNC_START = date(2024, 5, 1)  # Garmin API retention limit (~2 years)
+API_DELAY = 0.3  # Seconds between per-day API calls
+RUN_TYPES = frozenset({"running", "treadmill_running", "track_running"})
 
 # ─── Schema ──────────────────────────────────────────────────────────────────
 
@@ -153,6 +159,7 @@ CREATE TABLE IF NOT EXISTS training_plan (
 
 # ─── DB helpers ──────────────────────────────────────────────────────────────
 
+
 def _migrate(conn: sqlite3.Connection) -> None:
     """Add columns introduced after initial schema deployment."""
     migrations = [
@@ -160,10 +167,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
         "ALTER TABLE training_daily ADD COLUMN training_status  TEXT",
     ]
     for sql in migrations:
-        try:
+        with contextlib.suppress(Exception):  # column already exists
             conn.execute(sql)
-        except Exception:
-            pass  # column already exists
     conn.commit()
 
 
@@ -200,14 +205,18 @@ def date_range(start: date, end: date):
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
+
 # ─── Garmin client ───────────────────────────────────────────────────────────
+
 
 def get_client() -> Garmin:
     client = Garmin()
     client.login(str(TOKEN_DIR))
     return client
 
+
 # ─── Sync: Activities ────────────────────────────────────────────────────────
+
 
 def _parse_activity(a: dict) -> tuple:
     return (
@@ -264,6 +273,7 @@ def sync_activities(client: Garmin, conn: sqlite3.Connection, since: date) -> in
 
 # ─── Sync: Health (per day) ───────────────────────────────────────────────────
 
+
 def _fetch_health_day(client: Garmin, d: date) -> dict:
     ds = d.isoformat()
     row = {"date": ds}
@@ -287,10 +297,7 @@ def _fetch_health_day(client: Garmin, d: date) -> dict:
         sleep_resp = client.get_sleep_data(ds)
         sl = sleep_resp.get("dailySleepDTO") or {}
         scores = sl.get("sleepScores") or {}
-        row["sleep_score"] = (
-            scores.get("totalScore")
-            or (scores.get("overall") or {}).get("value")
-        )
+        row["sleep_score"] = scores.get("totalScore") or (scores.get("overall") or {}).get("value")
         row["sleep_duration_s"] = sl.get("sleepTimeSeconds")
         row["sleep_deep_s"] = sl.get("deepSleepSeconds")
         row["sleep_rem_s"] = sl.get("remSleepSeconds")
@@ -337,12 +344,25 @@ def _fetch_health_day(client: Garmin, d: date) -> dict:
 
 
 _HEALTH_COLS = [
-    "date", "hrv_last_night_avg", "hrv_weekly_avg", "hrv_status",
-    "hrv_baseline_low", "hrv_baseline_high", "sleep_score",
-    "sleep_duration_s", "sleep_deep_s", "sleep_rem_s",
-    "sleep_light_s", "sleep_awake_s", "rhr",
-    "body_battery_high", "body_battery_low", "stress", "synced_at",
+    "date",
+    "hrv_last_night_avg",
+    "hrv_weekly_avg",
+    "hrv_status",
+    "hrv_baseline_low",
+    "hrv_baseline_high",
+    "sleep_score",
+    "sleep_duration_s",
+    "sleep_deep_s",
+    "sleep_rem_s",
+    "sleep_light_s",
+    "sleep_awake_s",
+    "rhr",
+    "body_battery_high",
+    "body_battery_low",
+    "stress",
+    "synced_at",
 ]
+
 
 def sync_health(client: Garmin, conn: sqlite3.Connection, since: date) -> int:
     days = list(date_range(since, date.today()))
@@ -380,6 +400,7 @@ def sync_health(client: Garmin, conn: sqlite3.Connection, since: date) -> int:
 
 # ─── Sync: Training readiness (per day) ──────────────────────────────────────
 
+
 def _fetch_training_day(client: Garmin, d: date) -> dict:
     ds = d.isoformat()
     row = {"date": ds, "synced_at": now_iso()}
@@ -395,9 +416,14 @@ def _fetch_training_day(client: Garmin, d: date) -> dict:
             row["acute_load"] = r.get("acuteLoad")
             row["hrv_weekly_avg"] = r.get("hrvWeeklyAverage")
             if row.get("readiness_score") is None:
-                console.print(f"  [yellow]readiness {ds}: score=None (raw keys={list(r.keys())})[/yellow]")
+                console.print(
+                    f"  [yellow]readiness {ds}: score=None (raw keys={list(r.keys())})[/yellow]"
+                )
         else:
-            console.print(f"  [yellow]readiness {ds}: empty response (type={type(resp).__name__}, val={resp!r:.100})[/yellow]")
+            console.print(
+                f"  [yellow]readiness {ds}: empty response "
+                f"(type={type(resp).__name__}, val={resp!r:.100})[/yellow]"
+            )
     except Exception as exc:
         console.print(f"  [yellow]readiness {ds}: {type(exc).__name__}: {exc}[/yellow]")
     time.sleep(API_DELAY)
@@ -413,9 +439,16 @@ def _fetch_training_day(client: Garmin, d: date) -> dict:
 
 
 _TRAINING_COLS = [
-    "date", "readiness_score", "readiness_level", "readiness_feedback",
-    "acute_load", "hrv_weekly_avg", "training_status", "synced_at",
+    "date",
+    "readiness_score",
+    "readiness_level",
+    "readiness_feedback",
+    "acute_load",
+    "hrv_weekly_avg",
+    "training_status",
+    "synced_at",
 ]
+
 
 def sync_training(client: Garmin, conn: sqlite3.Connection, since: date) -> int:
     days = list(date_range(since, date.today()))
@@ -447,6 +480,7 @@ def sync_training(client: Garmin, conn: sqlite3.Connection, since: date) -> int:
 
 # ─── Sync: Weight ─────────────────────────────────────────────────────────────
 
+
 def sync_weight(client: Garmin, conn: sqlite3.Connection, since: date) -> int:
     try:
         entries = client.get_weigh_ins(since.isoformat(), date.today().isoformat())
@@ -474,6 +508,7 @@ def sync_weight(client: Garmin, conn: sqlite3.Connection, since: date) -> int:
 
 # ─── Main sync ────────────────────────────────────────────────────────────────
 
+
 def cmd_sync(args):
     console.print("[bold]Connecting to Garmin Connect...[/bold]")
     client = get_client()
@@ -485,8 +520,8 @@ def cmd_sync(args):
         since = date.fromisoformat(args.since)
     else:
         # Incremental: find the oldest last-sync date across all tables
-        since_health    = last_synced(conn, "health_daily", "date")
-        since_training  = last_synced(conn, "training_daily", "date")
+        since_health = last_synced(conn, "health_daily", "date")
+        since_training = last_synced(conn, "training_daily", "date")
         since_activities = last_synced(conn, "activities", "start_time_local")
         since = min(since_health, since_training, since_activities)
         # Back up 2 days to catch late-arriving data
@@ -516,6 +551,7 @@ def cmd_sync(args):
 
 # ─── Stats ────────────────────────────────────────────────────────────────────
 
+
 def cmd_stats(args):
     conn = connect()
 
@@ -525,10 +561,10 @@ def cmd_stats(args):
     table.add_column("Date range")
 
     for tbl, date_col in [
-        ("activities",    "start_time_local"),
-        ("health_daily",  "date"),
-        ("training_daily","date"),
-        ("weight",        "date"),
+        ("activities", "start_time_local"),
+        ("health_daily", "date"),
+        ("training_daily", "date"),
+        ("weight", "date"),
         ("context_entries", "created_at"),
     ]:
         row = conn.execute(
@@ -589,8 +625,11 @@ def cmd_stats(args):
         t3.add_column("Level")
         for r in rows:
             t3.add_row(
-                r["date"], str(r["hrv"] or "-"), r["hrv_status"] or "-",
-                str(r["readiness"] or "-"), r["readiness_level"] or "-",
+                r["date"],
+                str(r["hrv"] or "-"),
+                r["hrv_status"] or "-",
+                str(r["readiness"] or "-"),
+                r["readiness_level"] or "-",
             )
         console.print(t3)
 
@@ -598,6 +637,7 @@ def cmd_stats(args):
 
 
 # ─── Raw query ────────────────────────────────────────────────────────────────
+
 
 def cmd_query(args):
     conn = connect()
@@ -612,14 +652,506 @@ def cmd_query(args):
         return
 
     t = Table(show_lines=False)
-    for col in rows[0].keys():
+    for col in rows[0].keys():  # noqa: SIM118 - rows[0] is sqlite3.Row, not a dict: iterating
+        # it directly yields values, not column names - .keys() is required here
         t.add_column(col)
     for row in rows:
         t.add_row(*[str(v) if v is not None else "—" for v in row])
     console.print(t)
 
 
+# ─── Period analysis ──────────────────────────────────────────────────────────
+# Code-ified version of .claude/commands/analyze.md's Step 2 (SQL + derived
+# metrics). This replaces hand-writing a throwaway analysis script every
+# /analyze invocation - the derived-metric math lives here once.
+
+ALL_METRICS = {"sleep", "hrv", "readiness", "running", "strength", "body_battery", "correlations"}
+
+
+def _avg(vals):
+    vals = [v for v in vals if v is not None]
+    return sum(vals) / len(vals) if vals else None
+
+
+def _sleep_metrics(health_rows: list[dict]) -> dict:
+    scores = [r["sleep_score"] for r in health_rows if r["sleep_score"] is not None]
+    totals = [r["sleep_duration_s"] for r in health_rows if r["sleep_duration_s"]]
+    deep = [r["sleep_deep_s"] for r in health_rows if r["sleep_deep_s"] is not None]
+    rem = [r["sleep_rem_s"] for r in health_rows if r["sleep_rem_s"] is not None]
+    awake = [r["sleep_awake_s"] for r in health_rows if r["sleep_awake_s"] is not None]
+    avg_total_h = _avg(totals) / 3600 if totals else None
+    avg_deep_h = _avg(deep) / 3600 if deep else None
+    avg_rem_h = _avg(rem) / 3600 if rem else None
+    return {
+        "avg_sleep_score": _avg(scores),
+        "avg_total_h": avg_total_h,
+        "avg_deep_h": avg_deep_h,
+        "avg_rem_h": avg_rem_h,
+        "avg_awake_min": _avg(awake) / 60 if awake else None,
+        "deep_pct": (avg_deep_h / avg_total_h * 100)
+        if avg_total_h and avg_deep_h is not None
+        else None,
+        "rem_pct": (avg_rem_h / avg_total_h * 100)
+        if avg_total_h and avg_rem_h is not None
+        else None,
+        "nights_below_7h": sum(1 for t in totals if t < 7 * 3600),
+        "nights_score_under_70": sum(1 for s in scores if s < 70),
+        "n_nights": len(health_rows),
+    }
+
+
+def _hrv_metrics(health_rows: list[dict]) -> dict:
+    vals = [r["hrv_last_night_avg"] for r in health_rows if r["hrv_last_night_avg"] is not None]
+    statuses = [r["hrv_status"] for r in health_rows if r["hrv_status"]]
+    half = len(vals) // 2
+    stress_days = [
+        r["date"]
+        for r in health_rows
+        if r["hrv_last_night_avg"] is not None
+        and r["hrv_baseline_low"] is not None
+        and r["hrv_last_night_avg"] < r["hrv_baseline_low"] - 5
+    ]
+    return {
+        "avg_hrv": _avg(vals),
+        "min_hrv": min(vals) if vals else None,
+        "max_hrv": max(vals) if vals else None,
+        "hrv_std": statistics.pstdev(vals) if len(vals) > 1 else None,
+        "status_counts": dict(Counter(statuses)),
+        "first_half_avg": _avg(vals[:half]) if half else None,
+        "second_half_avg": _avg(vals[half:]) if half else None,
+        "stress_flag_days": stress_days,
+    }
+
+
+def _readiness_metrics(training_rows: list[dict]) -> dict:
+    scores = [r["readiness_score"] for r in training_rows if r["readiness_score"] is not None]
+    levels = [r["readiness_level"] for r in training_rows if r["readiness_level"]]
+    acute = [r["acute_load"] for r in training_rows if r["acute_load"] is not None]
+    return {
+        "avg_readiness": _avg(scores),
+        "min_readiness": min(scores) if scores else None,
+        "max_readiness": max(scores) if scores else None,
+        "level_counts": dict(Counter(levels)),
+        "avg_acute_load": _avg(acute),
+    }
+
+
+def _running_metrics(activity_rows: list[dict]) -> dict:
+    runs = [a for a in activity_rows if a["activity_type"] in RUN_TYPES]
+    total_km = sum((a["distance_m"] or 0) for a in runs) / 1000
+
+    zones = {z: sum((a[f"hr_z{z}_s"] or 0) for a in runs) for z in range(1, 6)}
+    ztotal = sum(zones.values())
+    zone_pct = {f"z{z}_pct": (zones[z] / ztotal * 100 if ztotal else None) for z in range(1, 6)}
+
+    cadences = [a["avg_cadence"] for a in runs if a["avg_cadence"]]
+    buckets = {
+        "<150": 0,
+        "150-154": 0,
+        "155-159": 0,
+        "160-164": 0,
+        "165-169": 0,
+        "170-174": 0,
+        "175+": 0,
+    }
+    for c in cadences:
+        if c < 150:
+            buckets["<150"] += 1
+        elif c < 155:
+            buckets["150-154"] += 1
+        elif c < 160:
+            buckets["155-159"] += 1
+        elif c < 165:
+            buckets["160-164"] += 1
+        elif c < 170:
+            buckets["165-169"] += 1
+        elif c < 175:
+            buckets["170-174"] += 1
+        else:
+            buckets["175+"] += 1
+
+    paces = [
+        (a["duration_s"] / 60) / (a["distance_m"] / 1000)
+        for a in runs
+        if a["distance_m"] and a["duration_s"]
+    ]
+
+    longest = max(runs, key=lambda a: a["distance_m"] or 0, default=None)
+    hardest = max(runs, key=lambda a: a["training_load"] or 0, default=None)
+
+    return {
+        "total_km": round(total_km, 2),
+        "total_runs": len(runs),
+        "avg_hr": _avg([a["avg_hr"] for a in runs]),
+        "avg_cadence": _avg(cadences),
+        "avg_pace_min_per_km": _avg(paces),
+        "avg_aerobic_te": _avg([a["aerobic_te"] for a in runs]),
+        "avg_training_load": _avg([a["training_load"] for a in runs]),
+        "hr_zone_pct": zone_pct,
+        "cadence_distribution": buckets,
+        "longest_run_km": round((longest["distance_m"] or 0) / 1000, 2) if longest else None,
+        "longest_run_date": longest["start_time_local"] if longest else None,
+        "hardest_load_session": hardest["training_load"] if hardest else None,
+        "hardest_load_date": hardest["start_time_local"] if hardest else None,
+    }
+
+
+def _strength_metrics(activity_rows: list[dict]) -> dict:
+    strength = [a for a in activity_rows if a["activity_type"] == "strength_training"]
+    return {
+        "total_strength_sessions": len(strength),
+        "avg_load": _avg([a["training_load"] for a in strength]),
+        "total_load": sum((a["training_load"] or 0) for a in strength),
+    }
+
+
+def _body_battery_metrics(health_rows: list[dict]) -> dict:
+    high = [r["body_battery_high"] for r in health_rows if r["body_battery_high"] is not None]
+    low = [r["body_battery_low"] for r in health_rows if r["body_battery_low"] is not None]
+    return {
+        "avg_daily_high": _avg(high),
+        "avg_daily_low": _avg(low),
+        "days_high_below_60": sum(1 for b in high if b < 60),
+    }
+
+
+def _iso_week_key(d: date) -> tuple[int, int]:
+    iso = d.isocalendar()
+    return (iso[0], iso[1])
+
+
+def _weekly_subtotals(
+    health_rows: list[dict], training_rows: list[dict], activity_rows: list[dict]
+) -> list[dict]:
+    runs = [a for a in activity_rows if a["activity_type"] in RUN_TYPES]
+    by_week: dict[tuple[int, int], dict] = {}
+
+    def bucket(key):
+        return by_week.setdefault(key, {"run_km": 0.0, "hrv": [], "sleep": [], "readiness": []})
+
+    for a in runs:
+        d = datetime.strptime(a["start_time_local"][:10], "%Y-%m-%d").date()
+        bucket(_iso_week_key(d))["run_km"] += (a["distance_m"] or 0) / 1000
+
+    for r in health_rows:
+        d = datetime.strptime(r["date"], "%Y-%m-%d").date()
+        b = bucket(_iso_week_key(d))
+        if r["hrv_last_night_avg"] is not None:
+            b["hrv"].append(r["hrv_last_night_avg"])
+        if r["sleep_score"] is not None:
+            b["sleep"].append(r["sleep_score"])
+
+    for r in training_rows:
+        d = datetime.strptime(r["date"], "%Y-%m-%d").date()
+        b = bucket(_iso_week_key(d))
+        if r["readiness_score"] is not None:
+            b["readiness"].append(r["readiness_score"])
+
+    result = []
+    for iso_year, iso_week in sorted(by_week):
+        v = by_week[(iso_year, iso_week)]
+        result.append(
+            {
+                "iso_year": iso_year,
+                "iso_week": iso_week,
+                "run_km": round(v["run_km"], 2),
+                "avg_hrv": _avg(v["hrv"]),
+                "avg_sleep_score": _avg(v["sleep"]),
+                "avg_readiness": _avg(v["readiness"]),
+            }
+        )
+    return result
+
+
+def _corr(pairs: list[tuple[float, float]]) -> float | None:
+    if len(pairs) < 7:
+        return None
+    xs, ys = zip(*pairs, strict=True)
+    try:
+        return statistics.correlation(xs, ys)
+    except (statistics.StatisticsError, ZeroDivisionError):
+        return None
+
+
+def _correlations(health_rows: list[dict], training_rows: list[dict]) -> dict:
+    h_by_date = {r["date"]: r for r in health_rows}
+    t_by_date = {r["date"]: r for r in training_rows}
+
+    hrv_next_readiness = []
+    for d in sorted(h_by_date):
+        hrv = h_by_date[d]["hrv_last_night_avg"]
+        if hrv is None:
+            continue
+        nxt = (datetime.strptime(d, "%Y-%m-%d").date() + timedelta(days=1)).isoformat()
+        if nxt in t_by_date and t_by_date[nxt]["readiness_score"] is not None:
+            hrv_next_readiness.append((hrv, t_by_date[nxt]["readiness_score"]))
+
+    sleep_hrv = [
+        (h_by_date[d]["sleep_score"], h_by_date[d]["hrv_last_night_avg"])
+        for d in h_by_date
+        if h_by_date[d]["sleep_score"] is not None
+        and h_by_date[d]["hrv_last_night_avg"] is not None
+    ]
+    deep_hrv = [
+        (h_by_date[d]["sleep_deep_s"], h_by_date[d]["hrv_last_night_avg"])
+        for d in h_by_date
+        if h_by_date[d]["sleep_deep_s"] is not None
+        and h_by_date[d]["hrv_last_night_avg"] is not None
+    ]
+    bb_readiness = []
+    for d in sorted(h_by_date):
+        bb = h_by_date[d]["body_battery_high"]
+        if bb is not None and d in t_by_date and t_by_date[d]["readiness_score"] is not None:
+            bb_readiness.append((bb, t_by_date[d]["readiness_score"]))
+
+    return {
+        "hrv_vs_next_day_readiness": {"n": len(hrv_next_readiness), "r": _corr(hrv_next_readiness)},
+        "sleep_score_vs_same_night_hrv": {"n": len(sleep_hrv), "r": _corr(sleep_hrv)},
+        "deep_sleep_vs_hrv": {"n": len(deep_hrv), "r": _corr(deep_hrv)},
+        "body_battery_high_vs_readiness": {"n": len(bb_readiness), "r": _corr(bb_readiness)},
+    }
+
+
+def flag_outlier_days(health_rows: list[dict], training_rows: list[dict]) -> list[dict]:
+    """Extract specific days worth calling out by date, for callers (e.g. server.py's
+    /analyze) that send Claude only aggregates, not full daily_rows, but still want
+    the report to be able to cite concrete dates for red flags."""
+    t_by_date = {r["date"]: r for r in training_rows}
+    flagged: dict[str, dict] = {}
+
+    for r in health_rows:
+        if r["hrv_status"] == "LOW":
+            flagged.setdefault(r["date"], {"date": r["date"]})["hrv_status"] = "LOW"
+
+    for r in training_rows:
+        if r["readiness_score"] is not None and r["readiness_score"] < 40:
+            flagged.setdefault(r["date"], {"date": r["date"]})["readiness_score"] = r["readiness_score"]
+
+    for r in health_rows:
+        d = r["date"]
+        readiness = t_by_date.get(d, {}).get("readiness_score")
+        hrv_low = r["hrv_status"] == "LOW"
+        bb_low = r["body_battery_high"] is not None and r["body_battery_high"] < 60
+        if hrv_low and bb_low and readiness is not None and readiness < 40:
+            flagged.setdefault(d, {"date": d})["all_systems_stress"] = True
+
+    return sorted(flagged.values(), key=lambda x: x["date"])
+
+
+def compute_period_analysis(
+    conn: sqlite3.Connection, start: date, end: date, metrics: set[str] | None = None
+) -> dict:
+    """Compute derived analysis metrics for [start, end] (inclusive).
+
+    Returns aggregates for each requested metric group plus raw per-day rows
+    under "daily_rows" (health/training/activities) - the interpretation step
+    needs to cite specific dates (e.g. "flag days with all-systems-stress"),
+    and the query already fetched the rows, so they're always included.
+    """
+    if metrics is None:
+        metrics = set(ALL_METRICS)
+    unknown = metrics - ALL_METRICS
+    if unknown:
+        raise ValueError(f"Unknown metrics: {sorted(unknown)} (valid: {sorted(ALL_METRICS)})")
+
+    start_s, end_s = start.isoformat(), end.isoformat()
+
+    # Explicit column lists - never SELECT * here: activities.raw_json is the entire raw
+    # Garmin API payload per activity (~1,500 tokens each) and nothing downstream reads it
+    # or synced_at; dumping them into every result silently bloats any consumer (Claude
+    # Code's /analyze --format json, and server.py once it adopts this function) by tens
+    # to hundreds of thousands of tokens for multi-week periods.
+    health_rows = [
+        dict(r)
+        for r in conn.execute(
+            """SELECT date, hrv_last_night_avg, hrv_weekly_avg, hrv_status,
+                      hrv_baseline_low, hrv_baseline_high, sleep_score, sleep_duration_s,
+                      sleep_deep_s, sleep_rem_s, sleep_light_s, sleep_awake_s, rhr,
+                      body_battery_high, body_battery_low, stress
+               FROM health_daily WHERE date BETWEEN ? AND ? ORDER BY date""",
+            (start_s, end_s),
+        ).fetchall()
+    ]
+    training_rows = [
+        dict(r)
+        for r in conn.execute(
+            """SELECT date, readiness_score, readiness_level, readiness_feedback,
+                      acute_load, hrv_weekly_avg, training_status
+               FROM training_daily WHERE date BETWEEN ? AND ? ORDER BY date""",
+            (start_s, end_s),
+        ).fetchall()
+    ]
+    activity_rows = [
+        dict(r)
+        for r in conn.execute(
+            """SELECT activity_id, start_time_gmt, start_time_local, activity_name,
+                      activity_type, distance_m, duration_s, moving_time_s, avg_hr, max_hr,
+                      avg_cadence, max_cadence, avg_speed_ms, calories, aerobic_te,
+                      anaerobic_te, training_load, avg_gct_ms, avg_stride_m,
+                      avg_vert_osc_mm, hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s
+               FROM activities
+               WHERE start_time_local BETWEEN ? AND ? ORDER BY start_time_local""",
+            (start_s, end_s + " 23:59:59"),
+        ).fetchall()
+    ]
+
+    days = (end - start).days + 1
+    result: dict = {
+        "period": {"start": start_s, "end": end_s, "days": days},
+        "daily_rows": {
+            "health": health_rows,
+            "training": training_rows,
+            "activities": activity_rows,
+        },
+    }
+
+    if "sleep" in metrics:
+        result["sleep"] = _sleep_metrics(health_rows)
+    if "hrv" in metrics:
+        result["hrv"] = _hrv_metrics(health_rows)
+    if "readiness" in metrics:
+        result["readiness"] = _readiness_metrics(training_rows)
+    if "running" in metrics:
+        result["running"] = _running_metrics(activity_rows)
+    if "strength" in metrics:
+        result["strength"] = _strength_metrics(activity_rows)
+    if "body_battery" in metrics:
+        result["body_battery"] = _body_battery_metrics(health_rows)
+
+    result["weekly_subtotals"] = (
+        _weekly_subtotals(health_rows, training_rows, activity_rows) if days >= 28 else None
+    )
+
+    if "correlations" in metrics:
+        result["correlations"] = _correlations(health_rows, training_rows)
+
+    return result
+
+
+def _resolve_period(period: str | None, today: date) -> tuple[date, date]:
+    """Mirror .claude/commands/analyze.md's Step 1 date-range table."""
+    if not period:
+        return today - timedelta(days=6), today
+    if period == "week":
+        return today - timedelta(days=today.weekday()), today
+    if period == "last-week":
+        this_monday = today - timedelta(days=today.weekday())
+        return this_monday - timedelta(days=7), this_monday - timedelta(days=1)
+    if period == "month":
+        return today.replace(day=1), today
+    if period == "last-month":
+        last_month_end = today.replace(day=1) - timedelta(days=1)
+        return last_month_end.replace(day=1), last_month_end
+    if period == "year":
+        return today.replace(month=1, day=1), today
+    if period == "last-year":
+        return date(today.year - 1, 1, 1), date(today.year - 1, 12, 31)
+    if re.fullmatch(r"\d{4}", period):
+        y = int(period)
+        return date(y, 1, 1), date(y, 12, 31)
+    if re.fullmatch(r"\d{4}-\d{2}", period):
+        y, m = (int(x) for x in period.split("-"))
+        start = date(y, m, 1)
+        end = date(y, m + 1, 1) - timedelta(days=1) if m < 12 else date(y, 12, 31)
+        return start, end
+    if ":" in period:
+        s, e = period.split(":", 1)
+        try:
+            return date.fromisoformat(s.strip()), date.fromisoformat(e.strip())
+        except ValueError as exc:
+            raise ValueError(f"Unrecognized --period value: {period!r} (bad date in range: {exc})") from exc
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", period):
+        try:
+            d = date.fromisoformat(period)
+        except ValueError as exc:
+            raise ValueError(f"Unrecognized --period value: {period!r} (bad date: {exc})") from exc
+        return d, d
+    raise ValueError(
+        f"Unrecognized --period value: {period!r} (expected week/last-week/month/last-month/"
+        "year/last-year/YYYY/YYYY-MM/YYYY-MM-DD/YYYY-MM-DD:YYYY-MM-DD)"
+    )
+
+
+def cmd_analyze(args):
+    today = date.today()
+
+    if args.period and (args.since or args.until):
+        console.print("[red]--period cannot be combined with --since/--until[/red]")
+        sys.exit(1)
+
+    try:
+        if args.since or args.until:
+            start = date.fromisoformat(args.since) if args.since else today - timedelta(days=6)
+            end = date.fromisoformat(args.until) if args.until else today
+        else:
+            start, end = _resolve_period(args.period, today)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        sys.exit(1)
+
+    metrics = (
+        None if args.metrics in (None, "all") else {m.strip() for m in args.metrics.split(",")}
+    )
+
+    conn = connect()
+    try:
+        result = compute_period_analysis(conn, start, end, metrics)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        sys.exit(1)
+
+    if args.format == "json":
+        print(json.dumps(result, indent=2, default=str))
+        return
+
+    console.print(
+        f"[bold]Period: {result['period']['start']} to {result['period']['end']} "
+        f"({result['period']['days']} days)[/bold]\n"
+    )
+
+    for key in ("sleep", "hrv", "readiness", "running", "strength", "body_battery"):
+        if key not in result:
+            continue
+        t = Table(title=key.replace("_", " ").title(), show_header=True)
+        t.add_column("Metric")
+        t.add_column("Value")
+        for k, v in result[key].items():
+            t.add_row(k, str(v))
+        console.print(t)
+        console.print()
+
+    if result.get("weekly_subtotals"):
+        t = Table(title="Weekly Subtotals")
+        t.add_column("ISO Week")
+        t.add_column("Run km")
+        t.add_column("Avg HRV")
+        t.add_column("Avg Sleep")
+        t.add_column("Avg Readiness")
+        for w in result["weekly_subtotals"]:
+            t.add_row(
+                f"{w['iso_year']}-W{w['iso_week']:02d}",
+                str(w["run_km"]),
+                str(w["avg_hrv"]),
+                str(w["avg_sleep_score"]),
+                str(w["avg_readiness"]),
+            )
+        console.print(t)
+        console.print()
+
+    if result.get("correlations"):
+        t = Table(title="Correlations")
+        t.add_column("Pair")
+        t.add_column("N")
+        t.add_column("r")
+        for k, v in result["correlations"].items():
+            t.add_row(k, str(v["n"]), str(v["r"]))
+        console.print(t)
+
+    console.print(f"\nDB: {DB_PATH}")
+
+
 # ─── CLI entry point ─────────────────────────────────────────────────────────
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -641,9 +1173,29 @@ def main():
     p_query = sub.add_parser("query", help="Run a raw SQL query")
     p_query.add_argument("sql", help="SQL statement to execute")
 
+    # analyze
+    p_analyze = sub.add_parser("analyze", help="Compute period analysis metrics")
+    p_analyze.add_argument("--since", metavar="YYYY-MM-DD", help="Explicit start date")
+    p_analyze.add_argument(
+        "--until", metavar="YYYY-MM-DD", help="Explicit end date (default: today)"
+    )
+    p_analyze.add_argument(
+        "--period",
+        metavar="RANGE",
+        help="week|last-week|month|last-month|year|last-year|YYYY|YYYY-MM "
+        "(mutually exclusive with --since/--until; default: last 7 days)",
+    )
+    p_analyze.add_argument(
+        "--metrics",
+        default="all",
+        help="Comma list: sleep,hrv,readiness,running,strength,body_battery,correlations "
+        "(default: all)",
+    )
+    p_analyze.add_argument("--format", choices=["table", "json"], default="table")
+
     args = parser.parse_args()
 
-    dispatch = {"sync": cmd_sync, "stats": cmd_stats, "query": cmd_query}
+    dispatch = {"sync": cmd_sync, "stats": cmd_stats, "query": cmd_query, "analyze": cmd_analyze}
     dispatch[args.command](args)
 
 
