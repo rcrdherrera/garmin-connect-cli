@@ -14,11 +14,11 @@ User invoked with: `$ARGUMENTS` (optional activity ID; if blank, use most recent
 
 ## Step 1 — Load Athlete Context
 
-Read these memory files in parallel:
+Read these memory files in parallel (same in-repo set `server.py` and `/coach` read):
 
 ```
-Read: C:\Users\ricar\.claude\projects\C--garmin-connect-cli\memory\hr_zones.md
-Read: C:\Users\ricar\.claude\projects\C--garmin-connect-cli\memory\race_goals_2026.md
+Read: .claude/memory/hr_zones.md
+Read: .claude/memory/race_goals_2026.md
 ```
 
 Key values to extract:
@@ -35,185 +35,42 @@ Read: C:\Users\ricar\.config\garmin-connect-cli\training_plan.json
 
 ## Step 2 — Pull Workout Data
 
-Write a Python script to `C:\Users\ricar\AppData\Local\Temp\garmin_evaluate.py` and run it. Use PowerShell to write (`$script | Out-File -FilePath ... -Encoding utf8`) then execute.
+DB path: `C:\Users\ricar\.config\garmin-connect-cli\garmin.db`
+Python: `C:\Users\ricar\Github\garmin-connect-cli\.venv\Scripts\python.exe`
 
-```python
-import sys, json, math
-from datetime import date, timedelta
-from pathlib import Path
+> **IMPORTANT — DB may be stale.** A just-completed run won't be in the DB until you sync. Always sync first so the target activity and its post-run readiness/HRV are present:
+> ```powershell
+> uv run python garmin_db.py sync --since <race_or_run_date>
+> ```
+> (or a plain `uv run python garmin_db.py sync` to backfill from the last-synced date).
 
-sys.path.insert(0, r"C:\garmin-connect-cli\src")
-from garmin_connect_cli.client import GarminClient
-from garmin_connect_cli.config import Config
-import sqlite3
+### Run the evaluation command
 
-ACTIVITY_ID = None  # Replace with $ARGUMENTS if provided, else None
+All derived-metric computation — the activity summary (distance/pace/HR/cadence/**HR-zone split**), the load metrics (**ACWR**, and the Banister **CTL/ATL/TSB**), and the recent HRV/readiness recovery rows — lives in `garmin_db.py`'s `evaluate` subcommand. **Do not hand-write a script for any of this** (the ACWR/CTL/ATL/TSB math used to be re-derived inline every invocation — it's now tested code in `garmin_db.py`):
 
-config = Config.load()
-client = GarminClient(config)
-client.ensure_authenticated()
-
-DB = r"C:\Users\ricar\.config\garmin-connect-cli\garmin.db"
-conn = sqlite3.connect(DB)
-conn.row_factory = sqlite3.Row
-
-# ── 1. Identify target activity ───────────────────────────────────────────────
-if ACTIVITY_ID:
-    activities = client.get_activities(start=0, limit=20)
-    target_act = next((a for a in activities if a["activityId"] == ACTIVITY_ID), None)
-else:
-    # Most recent run (skip strength sessions)
-    activities = client.get_activities(start=0, limit=10)
-    target_act = next(
-        (a for a in activities
-         if a.get("activityType", {}).get("typeKey", "")
-         in ("running", "treadmill_running", "track_running")),
-        None
-    )
-
-if not target_act:
-    print(json.dumps({"error": "No recent run found"}))
-    sys.exit(0)
-
-aid = target_act["activityId"]
-act_date = target_act["startTimeLocal"][:10]
-
-# ── 2. Fetch evaluation (feel + RPE) ─────────────────────────────────────────
-evaluation = client.get_activity_evaluation(aid)
-
-# ── 3. Get activity metrics from DB ──────────────────────────────────────────
-cur = conn.execute("""
-    SELECT distance_m, duration_s, avg_hr, max_hr, avg_cadence,
-           aerobic_te, training_load,
-           hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s,
-           activity_name, activity_type
-    FROM activities WHERE activity_id = ?
-""", (aid,))
-row = cur.fetchone()
-
-if not row:
-    print(json.dumps({"error": f"Activity {aid} not in DB — sync may be needed"}))
-    sys.exit(0)
-
-total_zone_s = sum(filter(None, [row["hr_z1_s"], row["hr_z2_s"], row["hr_z3_s"], row["hr_z4_s"], row["hr_z5_s"]])) or 1
-z2_pct = round((row["hr_z2_s"] or 0) / total_zone_s * 100, 1)
-z3_plus_pct = round(((row["hr_z3_s"] or 0) + (row["hr_z4_s"] or 0) + (row["hr_z5_s"] or 0)) / total_zone_s * 100, 1)
-
-activity_info = {
-    "activityId": aid,
-    "date": act_date,
-    "name": row["activity_name"],
-    "type": row["activity_type"],
-    "distance_km": round((row["distance_m"] or 0) / 1000, 2),
-    "duration_min": round((row["duration_s"] or 0) / 60, 1),
-    "avg_hr": row["avg_hr"],
-    "max_hr": row["max_hr"],
-    "avg_cadence": row["avg_cadence"],
-    "aerobic_te": row["aerobic_te"],
-    "training_load": row["training_load"],
-    "hr_z2_pct": z2_pct,
-    "hr_z3plus_pct": z3_plus_pct,
-}
-
-# ── 4. Compute ACWR (7-day / 28-day) ─────────────────────────────────────────
-today = date.today()
-day28_ago = (today - timedelta(days=28)).isoformat()
-day7_ago  = (today - timedelta(days=7)).isoformat()
-
-cur = conn.execute("""
-    SELECT SUM(training_load), COUNT(*)
-    FROM activities
-    WHERE start_time_local >= ? AND start_time_local < ?
-      AND activity_type IN ('running','treadmill_running','track_running')
-""", (day28_ago, (today + timedelta(days=1)).isoformat()))
-r28 = cur.fetchone()
-chronic_load = (r28[0] or 0) / 4  # weekly average of 4-week window
-
-cur = conn.execute("""
-    SELECT SUM(training_load)
-    FROM activities
-    WHERE start_time_local >= ? AND start_time_local < ?
-      AND activity_type IN ('running','treadmill_running','track_running')
-""", (day7_ago, (today + timedelta(days=1)).isoformat()))
-acute_load = cur.fetchone()[0] or 0
-
-acwr = round(acute_load / chronic_load, 2) if chronic_load > 0 else None
-
-# ── 5. Compute CTL / ATL / TSB (Banister) ────────────────────────────────────
-# τCTL=42 days, τATL=7 days
-cur = conn.execute("""
-    SELECT start_time_local[:10] as d, SUM(training_load) as load
-    FROM activities
-    WHERE start_time_local >= ?
-      AND activity_type IN ('running','treadmill_running','track_running',
-                            'strength_training','fitness_equipment')
-    GROUP BY d ORDER BY d
-""", (day28_ago,))
-
-ctl, atl = 0.0, 0.0
-k_ctl = math.exp(-1/42)
-k_atl = math.exp(-1/7)
-
-last_date = None
-for drow in cur.fetchall():
-    d = drow[0]
-    load = drow[1] or 0
-    if last_date:
-        gap = (date.fromisoformat(d) - date.fromisoformat(last_date)).days
-        for _ in range(gap):
-            ctl = ctl * k_ctl
-            atl = atl * k_atl
-    ctl = ctl * k_ctl + load * (1 - k_ctl)
-    atl = atl * k_atl + load * (1 - k_atl)
-    last_date = d
-
-tsb = round(ctl - atl, 1)
-ctl = round(ctl, 1)
-atl = round(atl, 1)
-
-# ── 6. Get morning HRV ────────────────────────────────────────────────────────
-try:
-    hrv_data = client.get_hrv_data(today.isoformat())
-    hrv_summary = hrv_data.get("hrvSummary", {})
-    hrv_last = hrv_summary.get("lastNightAvg")
-    hrv_weekly = hrv_summary.get("weeklyAvg")
-    hrv_status = hrv_summary.get("status")
-    hrv_baseline_low = hrv_summary.get("baseline", {}).get("lowUpper") if hrv_summary.get("baseline") else None
-    hrv_baseline_high = hrv_summary.get("baseline", {}).get("balancedHigh") if hrv_summary.get("baseline") else None
-    hrv_drop_pct = round((hrv_weekly - hrv_last) / hrv_weekly * 100, 1) if hrv_last and hrv_weekly else None
-except Exception:
-    hrv_last = hrv_weekly = hrv_status = hrv_drop_pct = hrv_baseline_low = hrv_baseline_high = None
-
-conn.close()
-
-result = {
-    "activity": activity_info,
-    "evaluation": evaluation,
-    "load_metrics": {
-        "acute_load_7d": round(acute_load, 1),
-        "chronic_load_weekly_avg": round(chronic_load, 1),
-        "acwr": acwr,
-        "ctl": ctl,
-        "atl": atl,
-        "tsb": tsb,
-    },
-    "recovery": {
-        "hrv_last_night": hrv_last,
-        "hrv_weekly_avg": hrv_weekly,
-        "hrv_status": hrv_status,
-        "hrv_drop_pct": hrv_drop_pct,
-        "hrv_baseline_low": hrv_baseline_low,
-        "hrv_baseline_high": hrv_baseline_high,
-    },
-}
-
-print(json.dumps(result, indent=2))
-```
-
-Run it:
 ```powershell
-& "C:\garmin-connect-cli\.venv\Scripts\python.exe" "C:\Users\ricar\AppData\Local\Temp\garmin_evaluate.py"
+uv run python garmin_db.py evaluate --format json
 ```
+
+- Defaults to the **most recent run** in the DB. Pass `--activity <id>` (from `$ARGUMENTS`) to target a specific activity, or `--date YYYY-MM-DD` to compute load metrics as-of a different day (defaults to the activity's own date).
+- Output JSON has three blocks: `activity` (incl. `hr_zone_pct` and `hr_z3plus_pct`), `load_metrics` (`acwr`, `ctl`, `atl`, `tsb`, `acute_load`, `chronic_load_weekly_avg`), and `recovery` (`health_recent`, `readiness_recent`).
+
+### Fetch the subjective self-assessment (feel/RPE)
+
+Feel and RPE are **live-only** — Garmin stores them on the activity, not in the local DB. Fetch them with one client call (this is the only per-invocation Python needed, and it's trivial):
+
+```powershell
+uv run python -c "import sys; sys.path.insert(0, r'C:\Users\ricar\Github\garmin-connect-cli\src'); from garmin_connect_cli.client import get_client; c=get_client(); c.ensure_authenticated(); import json; print(json.dumps(c.get_activity_evaluation(<ACTIVITY_ID>)))"
+```
+
+`get_activity_evaluation` returns `feel` (0–100 label) and `rpe_10` (0–10). **Both are often `None`** — Ricardo frequently doesn't log them. If null, evaluate on objective data alone (HR/zones/load/HRV) and note that the subjective read was missing.
+
+<details>
+<summary>Legacy note — the old inline script (removed)</summary>
+
+Previously this step wrote a ~130-line script to a temp file that re-implemented DB auth, zone math, ACWR and the CTL/ATL/TSB EWMA by hand every run. That logic now lives in `garmin_db.py` (`compute_load_metrics`, `summarize_activity`, `find_latest_run`) with unit-test coverage. If you ever need the raw per-day inputs the old script computed, use `garmin_db.py analyze --since <d> --until <d> --format json` for the activity/health/training `daily_rows`.
+
+</details>
 
 ---
 
@@ -295,28 +152,27 @@ If `training_plan.json` was found in Step 1, identify:
 
 ### 4b — Execute changes via Python
 
-Write a new script to `C:\Users\ricar\AppData\Local\Temp\garmin_reschedule.py` for any calendar changes needed.
+Write a short scratch script for any calendar changes needed. **Use the `GarminClient` wrapper — never `garminconnect.Garmin()` directly.** The raw library's schedule response does not parse correctly (it returns `workoutScheduleId`, not `scheduledWorkoutId` — reading the wrong key silently yields `None` on success); the wrapper's `schedule_workout`/`replace_workout` handle this. This is the same rule `/coach` uses.
 
-**Pattern for rescheduling:**
 ```python
+import sys
 from pathlib import Path
-import json
-from garminconnect import Garmin
+sys.path.insert(0, str(Path.home() / "GitHub" / "garmin-connect-cli" / "src"))
+from garmin_connect_cli.client import get_client
 
-TOKEN_DIR = Path.home() / ".config" / "garmin-connect-cli" / "tokens"
-client = Garmin()
-client.login(str(TOKEN_DIR))
+client = get_client()
+client.ensure_authenticated()
 
-# Remove old scheduled workout from calendar
-client.garth.request("DELETE", "connectapi",
-    f"/workout-service/schedule/{scheduled_workout_id}", api=True)
+# Reschedule an existing library workout to a new date:
+sched = client.schedule_workout(replacement_workout_id, "YYYY-MM-DD")
+print("New scheduled ID:", sched.get("workoutScheduleId"))
 
-# Schedule replacement workout (must already exist in library)
-result = client.garth.post("connectapi",
-    f"/workout-service/schedule/{replacement_workout_id}",
-    json={"date": "YYYY-MM-DD"}, api=True).json()
-print("New scheduled ID:", result.get("scheduledWorkoutId"))
+# Or swap one already-scheduled session for a freshly-built one in a single call:
+# result = client.replace_workout(old_workout_id, old_scheduled_id, new_workout_dict, "YYYY-MM-DD")
+# print("workout_id:", result["workout_id"], "scheduled_id:", result["scheduled_id"])
 ```
+
+To remove a session from the calendar without a replacement, use `client.delete_scheduled_workout(scheduled_workout_id)` (the scheduled-id from the plan, **not** the workout-library id). `client.delete_workout(workout_id)` deletes the library template itself — usually not what you want mid-plan.
 
 **If the replacement session type doesn't exist in the library yet**, build it first using the same workout construction patterns from the `/coach` skill (run_seg, rep_group etc.), upload it, then schedule it.
 

@@ -452,3 +452,116 @@ class TestComputePeriodAnalysis:
         )
         assert len(result["daily_rows"]["health"]) == 1
         assert result["daily_rows"]["health"][0]["sleep_score"] == 80
+
+
+class TestSummarizeActivity:
+    def test_zone_split_pace_and_cadence(self, conn):
+        _insert_activity(
+            conn,
+            1,
+            "2026-06-01 08:00:00",
+            "running",
+            activity_name="Test Run",
+            distance_m=10000,
+            duration_s=3000,  # 50 min -> 5:00/km
+            avg_hr=150,
+            max_hr=175,
+            avg_cadence=165.4,
+            aerobic_te=3.5,
+            training_load=100,
+            hr_z1_s=0,
+            hr_z2_s=600,
+            hr_z3_s=300,
+            hr_z4_s=60,
+            hr_z5_s=40,  # total 1000
+        )
+        conn.commit()
+        s = garmin_db.summarize_activity(conn, 1)
+        assert s["distance_km"] == 10.0
+        assert s["duration_min"] == 50.0
+        assert s["avg_pace_min_per_km"] == 5.0
+        assert s["avg_cadence"] == 165.4
+        assert s["hr_zone_pct"]["z2_pct"] == 60.0
+        assert s["hr_zone_pct"]["z3_pct"] == 30.0
+        assert s["hr_z3plus_pct"] == 40.0  # (300+60+40)/1000
+
+    def test_missing_activity_returns_none(self, conn):
+        assert garmin_db.summarize_activity(conn, 999) is None
+
+    def test_zero_distance_does_not_crash(self, conn):
+        _insert_activity(conn, 1, "2026-06-01 08:00:00", "strength_training", training_load=30)
+        conn.commit()
+        s = garmin_db.summarize_activity(conn, 1)
+        assert s["avg_pace_min_per_km"] is None
+        assert s["hr_zone_pct"]["z1_pct"] is None
+        assert s["hr_z3plus_pct"] is None
+
+
+class TestFindLatestRun:
+    def test_picks_most_recent_run_ignoring_strength(self, conn):
+        _insert_activity(conn, 1, "2026-06-01 08:00:00", "running")
+        _insert_activity(conn, 2, "2026-06-03 08:00:00", "running")
+        _insert_activity(conn, 3, "2026-06-05 08:00:00", "strength_training")
+        conn.commit()
+        assert garmin_db.find_latest_run(conn) == 2  # 06-03, not the 06-05 strength
+
+    def test_as_of_filter(self, conn):
+        _insert_activity(conn, 1, "2026-06-01 08:00:00", "running")
+        _insert_activity(conn, 2, "2026-06-03 08:00:00", "running")
+        conn.commit()
+        assert garmin_db.find_latest_run(conn, as_of=date(2026, 6, 2)) == 1
+
+    def test_no_runs_returns_none(self, conn):
+        _insert_activity(conn, 1, "2026-06-01 08:00:00", "strength_training")
+        conn.commit()
+        assert garmin_db.find_latest_run(conn) is None
+
+
+class TestLoadMetrics:
+    def test_acwr_run_only_windows(self, conn):
+        # acute (7d ending 06-30): only the 06-28 run (load 100)
+        # chronic (28d ending 06-30): 06-28 (100) + 06-10 (200) = 300, weekly = 75
+        # the 05-01 run is outside both windows
+        _insert_activity(conn, 1, "2026-06-28 08:00:00", "running", training_load=100)
+        _insert_activity(conn, 2, "2026-06-10 08:00:00", "running", training_load=200)
+        _insert_activity(conn, 3, "2026-05-01 08:00:00", "running", training_load=999)
+        conn.commit()
+        m = garmin_db.compute_load_metrics(conn, date(2026, 6, 30))
+        assert m["acute_load"] == 100
+        assert m["chronic_load_weekly_avg"] == 75.0
+        assert m["acwr"] == round(100 / 75, 2)  # 1.33
+
+    def test_ctl_atl_single_impulse(self, conn):
+        # Single load of 42 on the as_of day, tiny warmup -> exact EWMA:
+        # ctl = 42 * (1/42) = 1.0 ; atl = 42 * (1/7) = 6.0 ; tsb = -5.0
+        _insert_activity(conn, 1, "2026-06-30 08:00:00", "running", training_load=42)
+        conn.commit()
+        m = garmin_db.compute_load_metrics(conn, date(2026, 6, 30), warmup_days=2)
+        assert m["ctl"] == 1.0
+        assert m["atl"] == 6.0
+        assert m["tsb"] == -5.0
+
+    def test_strength_counts_for_load_but_not_acwr(self, conn):
+        # A strength session on the as_of day: feeds CTL/ATL (LOAD_TYPES) but ACWR
+        # is run-only, so acute run load is 0 and ACWR is undefined.
+        _insert_activity(conn, 1, "2026-06-30 08:00:00", "strength_training", training_load=42)
+        conn.commit()
+        m = garmin_db.compute_load_metrics(conn, date(2026, 6, 30), warmup_days=0)
+        assert m["ctl"] == 1.0
+        assert m["atl"] == 6.0
+        assert m["acute_load"] == 0.0
+        assert m["acwr"] is None
+
+    def test_decay_on_rest_day(self, conn):
+        # Load 42 on 06-29, rest on 06-30. atl decays 6.0 -> 6.0*(6/7)=5.14 -> 5.1
+        _insert_activity(conn, 1, "2026-06-29 08:00:00", "running", training_load=42)
+        conn.commit()
+        m = garmin_db.compute_load_metrics(conn, date(2026, 6, 30), warmup_days=1)
+        assert m["atl"] == 5.1
+        assert m["ctl"] == 1.0  # 1.0*(41/42) = 0.976 -> rounds to 1.0
+
+    def test_empty_db_no_crash(self, conn):
+        m = garmin_db.compute_load_metrics(conn, date(2026, 6, 30))
+        assert m["acwr"] is None
+        assert m["ctl"] == 0.0
+        assert m["tsb"] == 0.0

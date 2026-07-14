@@ -14,6 +14,8 @@ Usage:
     uv run python garmin_db.py query "SELECT ..."       # Raw SQL
     uv run python garmin_db.py analyze --period week --format table
     uv run python garmin_db.py analyze --since 2026-05-25 --until 2026-07-06 --format json
+    uv run python garmin_db.py evaluate --format json        # most recent run + load metrics
+    uv run python garmin_db.py evaluate --activity 23572487748 --format json
 """
 
 import argparse
@@ -42,6 +44,10 @@ DB_PATH = Path.home() / ".config" / "garmin-connect-cli" / "garmin.db"
 SYNC_START = date(2024, 5, 1)  # Garmin API retention limit (~2 years)
 API_DELAY = 0.3  # Seconds between per-day API calls
 RUN_TYPES = frozenset({"running", "treadmill_running", "track_running"})
+# Activity types that contribute to systemic training load (CTL/ATL/TSB): runs plus
+# strength and generic gym/fitness-equipment sessions. ACWR stays run-only (see
+# compute_load_metrics) since it gates running-injury risk specifically.
+LOAD_TYPES = RUN_TYPES | frozenset({"strength_training", "fitness_equipment"})
 
 # ─── Schema ──────────────────────────────────────────────────────────────────
 
@@ -925,7 +931,9 @@ def flag_outlier_days(health_rows: list[dict], training_rows: list[dict]) -> lis
 
     for r in training_rows:
         if r["readiness_score"] is not None and r["readiness_score"] < 40:
-            flagged.setdefault(r["date"], {"date": r["date"]})["readiness_score"] = r["readiness_score"]
+            flagged.setdefault(r["date"], {"date": r["date"]})["readiness_score"] = r[
+                "readiness_score"
+            ]
 
     for r in health_rows:
         d = r["date"]
@@ -936,6 +944,142 @@ def flag_outlier_days(health_rows: list[dict], training_rows: list[dict]) -> lis
             flagged.setdefault(d, {"date": d})["all_systems_stress"] = True
 
     return sorted(flagged.values(), key=lambda x: x["date"])
+
+
+def find_latest_run(conn: sqlite3.Connection, as_of: date | None = None) -> int | None:
+    """activity_id of the most recent run (running/treadmill/track), optionally
+    on or before as_of (inclusive). None if there are no runs."""
+    placeholders = ",".join("?" for _ in RUN_TYPES)
+    params: list = list(RUN_TYPES)
+    clause = ""
+    if as_of is not None:
+        clause = " AND start_time_local <= ?"
+        params.append(as_of.isoformat() + " 23:59:59")
+    row = conn.execute(
+        f"""SELECT activity_id FROM activities
+            WHERE activity_type IN ({placeholders}){clause}
+            ORDER BY start_time_local DESC LIMIT 1""",
+        params,
+    ).fetchone()
+    return row["activity_id"] if row else None
+
+
+def summarize_activity(conn: sqlite3.Connection, activity_id: int) -> dict | None:
+    """Single-activity summary for post-workout evaluation: distance, pace, HR,
+    cadence, HR-zone split, training effect and load. Returns None if the id
+    isn't in the DB (caller should sync first)."""
+    row = conn.execute(
+        """SELECT activity_id, start_time_local, activity_name, activity_type,
+                  distance_m, duration_s, avg_hr, max_hr, avg_cadence,
+                  aerobic_te, anaerobic_te, training_load,
+                  hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s
+           FROM activities WHERE activity_id = ?""",
+        (activity_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    r = dict(row)
+    zones = {z: (r[f"hr_z{z}_s"] or 0) for z in range(1, 6)}
+    ztotal = sum(zones.values())
+    zone_pct = {
+        f"z{z}_pct": (round(zones[z] / ztotal * 100, 1) if ztotal else None) for z in range(1, 6)
+    }
+    z3plus = round(sum(zones[z] for z in (3, 4, 5)) / ztotal * 100, 1) if ztotal else None
+    dist_km = (r["distance_m"] or 0) / 1000
+    dur_min = (r["duration_s"] or 0) / 60
+
+    def _rnd(v, n=1):
+        return round(v, n) if v is not None else None
+
+    return {
+        "activity_id": r["activity_id"],
+        "date": r["start_time_local"],
+        "name": r["activity_name"],
+        "type": r["activity_type"],
+        "distance_km": round(dist_km, 2),
+        "duration_min": round(dur_min, 1),
+        "avg_hr": r["avg_hr"],
+        "max_hr": r["max_hr"],
+        "avg_cadence": _rnd(r["avg_cadence"]),
+        "aerobic_te": _rnd(r["aerobic_te"], 2),
+        "anaerobic_te": _rnd(r["anaerobic_te"], 2),
+        "training_load": _rnd(r["training_load"]),
+        "avg_pace_min_per_km": round(dur_min / dist_km, 2) if dist_km else None,
+        "hr_zone_pct": zone_pct,
+        "hr_z3plus_pct": z3plus,
+    }
+
+
+def compute_load_metrics(
+    conn: sqlite3.Connection,
+    as_of: date,
+    *,
+    acute_days: int = 7,
+    chronic_days: int = 28,
+    ctl_tau: int = 42,
+    atl_tau: int = 7,
+    warmup_days: int = 84,
+) -> dict:
+    """Training-load / fitness-fatigue metrics as of `as_of` (inclusive).
+
+    - ACWR (Gabbett): acute = run load over the last `acute_days`; chronic = mean
+      weekly run load over `chronic_days`; ratio = acute / chronic. Run-only, since
+      ACWR gates running-injury risk. 0.8-1.3 safe, >1.5 high risk.
+    - CTL/ATL/TSB (Banister impulse-response, EWMA): daily systemic load (LOAD_TYPES)
+      smoothed with time constants `ctl_tau` (fitness) and `atl_tau` (fatigue).
+      TSB = CTL - ATL (form). The EWMA is warmed up over `warmup_days` before `as_of`
+      so the 42-day CTL constant isn't cold-started from zero at the window edge.
+    """
+    # Daily systemic load series over the warmup window, one bucket per calendar day.
+    warm_start = as_of - timedelta(days=warmup_days)
+    load_placeholders = ",".join("?" for _ in LOAD_TYPES)
+    daily_load: dict[str, float] = {}
+    for r in conn.execute(
+        f"""SELECT substr(start_time_local, 1, 10) AS d, SUM(training_load) AS load
+            FROM activities
+            WHERE start_time_local BETWEEN ? AND ?
+              AND activity_type IN ({load_placeholders})
+            GROUP BY d""",
+        [warm_start.isoformat(), as_of.isoformat() + " 23:59:59", *LOAD_TYPES],
+    ).fetchall():
+        daily_load[r["d"]] = r["load"] or 0.0
+
+    # Walk every calendar day (including rest days, so decay applies correctly).
+    ctl = atl = 0.0
+    k_ctl = 1 - 1 / ctl_tau
+    k_atl = 1 - 1 / atl_tau
+    for d in date_range(warm_start, as_of):
+        load = daily_load.get(d.isoformat(), 0.0)
+        ctl = ctl * k_ctl + load * (1 - k_ctl)
+        atl = atl * k_atl + load * (1 - k_atl)
+
+    # ACWR: run-only load over acute vs chronic windows (both ending at as_of).
+    run_placeholders = ",".join("?" for _ in RUN_TYPES)
+
+    def _run_load(days: int) -> float:
+        start = as_of - timedelta(days=days - 1)
+        row = conn.execute(
+            f"""SELECT SUM(training_load) FROM activities
+                WHERE start_time_local BETWEEN ? AND ?
+                  AND activity_type IN ({run_placeholders})""",
+            [start.isoformat(), as_of.isoformat() + " 23:59:59", *RUN_TYPES],
+        ).fetchone()
+        return row[0] or 0.0
+
+    acute = _run_load(acute_days)
+    chronic_total = _run_load(chronic_days)
+    chronic_weekly = chronic_total / (chronic_days / 7)
+    acwr = round(acute / chronic_weekly, 2) if chronic_weekly else None
+
+    return {
+        "as_of": as_of.isoformat(),
+        "acute_load": round(acute, 1),
+        "chronic_load_weekly_avg": round(chronic_weekly, 1),
+        "acwr": acwr,
+        "ctl": round(ctl, 1),
+        "atl": round(atl, 1),
+        "tsb": round(ctl - atl, 1),
+    }
 
 
 def compute_period_analysis(
@@ -1059,7 +1203,9 @@ def _resolve_period(period: str | None, today: date) -> tuple[date, date]:
         try:
             return date.fromisoformat(s.strip()), date.fromisoformat(e.strip())
         except ValueError as exc:
-            raise ValueError(f"Unrecognized --period value: {period!r} (bad date in range: {exc})") from exc
+            raise ValueError(
+                f"Unrecognized --period value: {period!r} (bad date in range: {exc})"
+            ) from exc
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", period):
         try:
             d = date.fromisoformat(period)
@@ -1150,6 +1296,83 @@ def cmd_analyze(args):
     console.print(f"\nDB: {DB_PATH}")
 
 
+def cmd_evaluate(args):
+    conn = connect()
+
+    if args.activity:
+        aid = int(args.activity)
+    else:
+        aid = find_latest_run(conn)
+        if aid is None:
+            console.print("[red]No runs found in the DB — sync first.[/red]")
+            sys.exit(1)
+
+    summary = summarize_activity(conn, aid)
+    if summary is None:
+        console.print(
+            f"[red]Activity {aid} not in DB — run 'garmin_db.py sync' to backfill it first.[/red]"
+        )
+        sys.exit(1)
+
+    try:
+        as_of = (
+            date.fromisoformat(args.date) if args.date else date.fromisoformat(summary["date"][:10])
+        )
+    except ValueError as e:
+        console.print(f"[red]Bad --date: {e}[/red]")
+        sys.exit(1)
+
+    load = compute_load_metrics(conn, as_of)
+
+    # Recovery context: the few days of HRV/sleep/RHR and readiness ending at as_of.
+    health = [
+        dict(r)
+        for r in conn.execute(
+            """SELECT date, hrv_last_night_avg, hrv_weekly_avg, hrv_status,
+                      hrv_baseline_low, hrv_baseline_high, sleep_score, sleep_deep_s,
+                      sleep_awake_s, rhr, body_battery_high, body_battery_low
+               FROM health_daily WHERE date <= ? ORDER BY date DESC LIMIT 3""",
+            (as_of.isoformat(),),
+        ).fetchall()
+    ]
+    readiness = [
+        dict(r)
+        for r in conn.execute(
+            """SELECT date, readiness_score, readiness_level, readiness_feedback, acute_load
+               FROM training_daily WHERE date <= ? ORDER BY date DESC LIMIT 4""",
+            (as_of.isoformat(),),
+        ).fetchall()
+    ]
+
+    result = {
+        "activity": summary,
+        "load_metrics": load,
+        "recovery": {"health_recent": health, "readiness_recent": readiness},
+    }
+
+    if args.format == "json":
+        print(json.dumps(result, indent=2, default=str))
+        return
+
+    console.print(f"[bold]Activity: {summary['name']} — {summary['date']}[/bold]")
+    console.print(
+        f"  {summary['distance_km']} km / {summary['duration_min']} min / "
+        f"{summary['avg_pace_min_per_km']} min/km"
+    )
+    console.print(
+        f"  HR avg {summary['avg_hr']} / max {summary['max_hr']} · "
+        f"cadence {summary['avg_cadence']} · Z3+ {summary['hr_z3plus_pct']}% · "
+        f"load {summary['training_load']}\n"
+    )
+    t = Table(title="Load Metrics", show_header=True)
+    t.add_column("Metric")
+    t.add_column("Value")
+    for k, v in load.items():
+        t.add_row(k, str(v))
+    console.print(t)
+    console.print(f"\nDB: {DB_PATH}")
+
+
 # ─── CLI entry point ─────────────────────────────────────────────────────────
 
 
@@ -1193,9 +1416,29 @@ def main():
     )
     p_analyze.add_argument("--format", choices=["table", "json"], default="table")
 
+    # evaluate
+    p_eval = sub.add_parser(
+        "evaluate", help="Post-workout evaluation: activity summary + ACWR/CTL/ATL/TSB"
+    )
+    p_eval.add_argument(
+        "--activity", metavar="ID", help="Activity id (default: most recent run in the DB)"
+    )
+    p_eval.add_argument(
+        "--date",
+        metavar="YYYY-MM-DD",
+        help="As-of date for load metrics (default: the activity's own date)",
+    )
+    p_eval.add_argument("--format", choices=["table", "json"], default="table")
+
     args = parser.parse_args()
 
-    dispatch = {"sync": cmd_sync, "stats": cmd_stats, "query": cmd_query, "analyze": cmd_analyze}
+    dispatch = {
+        "sync": cmd_sync,
+        "stats": cmd_stats,
+        "query": cmd_query,
+        "analyze": cmd_analyze,
+        "evaluate": cmd_evaluate,
+    }
     dispatch[args.command](args)
 
 
