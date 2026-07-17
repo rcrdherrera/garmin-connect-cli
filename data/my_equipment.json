@@ -1,11 +1,13 @@
 {
-  "owned": ["DUMBBELL", "KETTLEBELL", "BENCH", "BAND", "BOX"],
+  "owned": ["DUMBBELL", "KETTLEBELL", "BENCH", "BAND", "BOX", "ANKLE_WEIGHT"],
   "notes": {
-    "DUMBBELL": "pairs, up to 10kg each",
+    "DUMBBELL": "pairs, up to 10kg each; can also be foot-anchored via the ankle strap (see ankle_strap)",
     "KETTLEBELL": "pairs, up to 10kg each",
     "BENCH": "flat bench",
-    "BAND": "elastic resistance bands",
+    "BAND": "elastic resistance bands (tube-style) AND fabric hip loops (see hip_bands) - both map to BAND for validation",
     "BOX": "the flat bench doubles as a step-up box - Garmin tags every *_STEP_UP exercise (e.g. DUMBBELL_STEP_UP) with BOX, not BENCH, even though a bench serves the same function",
+    "ankle_strap": "TOPJUM foot/ankle strap that anchors a dumbbell to the top of the foot - functionally an ANKLE_WEIGHT (that is the Garmin equipment token to use). Enables weighted hip-flexor raises, leg raises, and glute kickbacks (e.g. LEG_RAISE/WEIGHTED_LYING_STRAIGHT_LEG_RAISE, LEG_RAISE/WEIGHTED_QUADRUPED_LEG_RAISE). Load = the DB weight strapped on.",
+    "hip_bands": "3x fabric hip resistance loops (light/medium/heavy) worn above the knees - glute-medius/abductor activation (banded squats, lateral/monster walks, clamshells, banded glute bridge, fire hydrants). Directly PTT-relevant: hip-abductor strength reduces femoral internal rotation -> less pronation -> less posterior tibial tendon load. Maps to BAND for validation.",
     "other": "tibial bar + incline bench for tibialis anterior raises - not in Garmin's equipment vocabulary, use category=None/exerciseName=None with a descriptive desc instead"
   }
 }

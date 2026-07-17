@@ -35,6 +35,7 @@ from garmin_connect_cli.workout_builder import (  # noqa: E402
     STEP_WARMUP,
     STRENGTH,
     ex_reps,
+    ex_reps_w,
     ex_time,
     rep_group,
     rest,
@@ -258,6 +259,229 @@ def lower_body_hip_glute():
         STRENGTH,
         steps,
         2700,
+    )
+
+
+def lower_body_hip_glute_bands():
+    """
+    Lower Body: Hip, Glute, Tibialis & Bands — PTT Focus — ~55min
+
+    Enhanced lower session that adds the hip-band + ankle-strap equipment to the
+    proven Hip/Glute/Tibialis template. New vs. the older version:
+      - Lateral band walk (hip loop) — direct glute-medius/abductor loading. Weak
+        abductors -> femoral internal rotation -> pronation -> PTT overload
+        (Semciw et al.), so this is a primary PTT offloader, not accessory work.
+      - Weighted lying leg raise (ankle strap) — hip-flexor strength for swing phase.
+
+    Exercises (all validated against Garmin's catalog + owned equipment):
+      1. Lateral Band Walk (BANDED_EXERCISES/LATERAL_BAND_WALKS) 3x12/side — glute-med activation
+      2. Glute Bridge (HIP_RAISE, 10kg) 4x15 — glute max, key PTT offloader
+      3. Single-Leg Hip Raise (HIP_RAISE/SINGLE_LEG_HIP_RAISE) 3x12/side — unilateral glute
+      4. Split Squat (SQUAT, 8kg) 3x10/side — hip/quad, single-leg
+      5. Reverse Lunge (LUNGE, 8kg) 3x10/side — glute dominant, knee-safe
+      6. Weighted Lying Leg Raise (LEG_RAISE/WEIGHTED_LYING_STRAIGHT_LEG_RAISE, 4kg ankle strap) 3x12/side — hip flexor
+      7. Standing Calf Raise (CALF_RAISE/STANDING_CALF_RAISE, 10kg) 3x15 slow eccentric — tendon durability
+      8. Tibialis Raise (tibial bar, incline bench) 3x15 slow eccentric — pronation control
+    """
+    o = 1
+
+    def next_o():
+        nonlocal o
+        v = o
+        o += 1
+        return v
+
+    g = 1
+
+    def next_g():
+        nonlocal g
+        v = g
+        g += 1
+        return v
+
+    steps = []
+
+    # 1. Lateral Band Walk 3x12 each — glute-med activation (hip loop)
+    gid = next_g()
+    steps.append(
+        rep_group(
+            next_o(),
+            gid,
+            3,
+            [
+                ex_reps(
+                    next_o(),
+                    gid,
+                    12,
+                    "BANDED_EXERCISES",
+                    "LATERAL_BAND_WALKS",
+                    "Hip loop above knees. 12 steps each way. Stay low, toes forward, keep band tension.",
+                ),
+                rest(next_o(), gid),
+            ],
+        )
+    )
+
+    # 2. Glute Bridge 4x15 @ 10kg
+    gid = next_g()
+    steps.append(
+        rep_group(
+            next_o(),
+            gid,
+            4,
+            [
+                ex_reps_w(
+                    next_o(),
+                    gid,
+                    15,
+                    "HIP_RAISE",
+                    None,
+                    10.0,
+                    "Glute bridge. KB/DB on hips (10kg). Squeeze 1s at top. Pelvis neutral.",
+                ),
+                rest(next_o(), gid),
+            ],
+        )
+    )
+
+    # 3. Single-Leg Hip Raise 3x12 each (bodyweight)
+    gid = next_g()
+    steps.append(
+        rep_group(
+            next_o(),
+            gid,
+            3,
+            [
+                ex_reps(
+                    next_o(),
+                    gid,
+                    12,
+                    "HIP_RAISE",
+                    "SINGLE_LEG_HIP_RAISE",
+                    "Single-leg glute bridge. 12 each side. Keep hips level, control the descent.",
+                ),
+                rest(next_o(), gid),
+            ],
+        )
+    )
+
+    # 4. Split Squat 3x10 each @ 8kg
+    gid = next_g()
+    steps.append(
+        rep_group(
+            next_o(),
+            gid,
+            3,
+            [
+                ex_reps_w(
+                    next_o(),
+                    gid,
+                    10,
+                    "SQUAT",
+                    None,
+                    8.0,
+                    "Split squat. DB in each hand (8kg). 10 each leg. Front knee tracks toe, upright torso.",
+                ),
+                rest(next_o(), gid),
+            ],
+        )
+    )
+
+    # 5. Reverse Lunge 3x10 each @ 8kg
+    gid = next_g()
+    steps.append(
+        rep_group(
+            next_o(),
+            gid,
+            3,
+            [
+                ex_reps_w(
+                    next_o(),
+                    gid,
+                    10,
+                    "LUNGE",
+                    None,
+                    8.0,
+                    "Reverse lunge. DB in each hand (8kg). 10 each leg. Step back, drive through front heel.",
+                ),
+                rest(next_o(), gid),
+            ],
+        )
+    )
+
+    # 6. Weighted Lying Leg Raise 3x12 each @ 4kg (ankle strap) — hip flexor
+    gid = next_g()
+    steps.append(
+        rep_group(
+            next_o(),
+            gid,
+            3,
+            [
+                ex_reps_w(
+                    next_o(),
+                    gid,
+                    12,
+                    "LEG_RAISE",
+                    "WEIGHTED_LYING_STRAIGHT_LEG_RAISE",
+                    4.0,
+                    "Ankle strap + DB (start 4kg). Lying, straight leg raise. 12 each leg. Slow, no swinging.",
+                ),
+                rest(next_o(), gid),
+            ],
+        )
+    )
+
+    # 7. Standing Calf Raise 3x15 @ 10kg, slow eccentric
+    gid = next_g()
+    steps.append(
+        rep_group(
+            next_o(),
+            gid,
+            3,
+            [
+                ex_reps_w(
+                    next_o(),
+                    gid,
+                    15,
+                    "CALF_RAISE",
+                    "STANDING_CALF_RAISE",
+                    10.0,
+                    "Hold KB/DB (10kg). Rise 1s, LOWER 3s eccentric. Tendon durability.",
+                ),
+                rest(next_o(), gid),
+            ],
+        )
+    )
+
+    # 8. Tibialis Raise 3x15, slow eccentric (tibial bar, not in Garmin vocab -> desc only)
+    gid = next_g()
+    steps.append(
+        rep_group(
+            next_o(),
+            gid,
+            3,
+            [
+                ex_reps(
+                    next_o(),
+                    gid,
+                    15,
+                    "CALF_RAISE",
+                    None,
+                    "Feet on incline bench, tibial bar loaded. Lift toes UP, LOWER 3s eccentric. Tibialis anterior — pronation control.",
+                ),
+                rest(next_o(), gid),
+            ],
+        )
+    )
+
+    return workout(
+        "Lower Body: Hip, Glute, Tibialis & Bands — PTT Focus",
+        "PTT lower session. Band walks load the glute medius (offloads the tendon); ankle-strap "
+        "leg raises add hip-flexor strength; eccentric calf + tibialis raises (3s down) build tendon "
+        "durability. Rest 90-120sec between sets (press lap). STOP if any PTT pain.",
+        STRENGTH,
+        steps,
+        3300,
     )
 
 
@@ -611,6 +835,7 @@ def main():
         ("Walk-Run Return Protocol", walk_run_protocol()),
         ("Z2 Base Builder", z2_easy_run()),
         ("Lower Body: Hip & Glute", lower_body_hip_glute()),
+        ("Lower Body: Hip, Glute, Tibialis & Bands", lower_body_hip_glute_bands()),
         ("Upper Body + Core", upper_body_core()),
         ("Full Body: Posterior Chain", full_body_posterior_chain()),
     ]

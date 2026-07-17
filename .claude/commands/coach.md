@@ -112,6 +112,14 @@ PTT cleared by physio on 2026-05-16. No active injury. Conservative return-to-ru
 - `full-body` → 1 full body / posterior chain session
 - `weekly` or blank → full weekly plan: assess what's been done, fill the week with 2–3 running + 2–3 strength, no duplicates
 
+**Read the existing calendar first** so strength is placed *around* the already-scheduled runs (never re-derive it with an ad-hoc script):
+
+```bash
+garmin-connect --format json calendar show --month YYYY-MM
+```
+
+Returns one row per day with `workouts` (scheduled) and `activities` (completed). Apply the placement rules in `.claude/memory/strength_framework.md`: Lower+PTT on a quality-run day, Upper+Core on an easy-run day, no lower body in the 48h before the Saturday long run, 2×/week during the build. Reuse the validated library templates named there (lower **1633885839** incl. tibialis + hip-band/ankle-strap work, upper **1579706556**) rather than uploading new dicts.
+
 ### Weekly plan defaults (when blank or `weekly`)
 
 **First: calculate the current phase** using today's date vs the key dates below:

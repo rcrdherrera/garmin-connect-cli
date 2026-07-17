@@ -143,12 +143,15 @@ Always check current phase before adjusting:
 
 If the decision engine determined changes are needed, act on them now.
 
-### 4a — Read the training plan
+### 4a — Read the upcoming schedule
 
-If `training_plan.json` was found in Step 1, identify:
-- The next 1–3 upcoming sessions (date > today)
-- Their `garmin_workout_id` and `garmin_scheduled_id`
-- Their planned `intensity` (easy / moderate / hard)
+The **live Garmin calendar is the source of truth** (`training_plan.json` can be stale). See what's actually scheduled with:
+
+```bash
+garmin-connect --format json calendar show --month YYYY-MM
+```
+
+One row per day with `workouts` (scheduled) and `activities` (completed). Identify the next 1–3 upcoming sessions (date > today) and their intensity. To get the `workoutId` + scheduled `id` needed to move/replace a session, use `client.get_calendar_month(year, month)` (same data, raw items). `training_plan.json` mirrors this and also carries `garmin_workout_id` / `garmin_scheduled_id` per session — use it as a convenience cache, but reconcile against the calendar if they disagree.
 
 ### 4b — Execute changes via Python
 

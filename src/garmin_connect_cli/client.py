@@ -534,6 +534,36 @@ class GarminClient:
         url = f"/workout-service/schedule/{scheduled_workout_id}"
         self.client.garth.request("DELETE", "connectapi", url, api=True)
 
+    def get_calendar_month(self, year: int, month: int) -> list[dict[str, Any]]:
+        """Fetch scheduled workouts and completed activities for a calendar month.
+
+        Args:
+            year: Full year, e.g. 2026
+            month: 1-indexed month (1=January, 12=December)
+
+        Returns:
+            calendarItems whose date falls within the requested month, deduped.
+            Garmin's endpoint pads the response with leading/trailing days from the
+            adjacent months and can repeat items on the boundary; both are dropped.
+        """
+        self.ensure_authenticated()
+        # Garmin's calendar endpoint uses 0-indexed months (0=January, 6=July).
+        data = self.client.connectapi(f"/calendar-service/year/{year}/month/{month - 1}")
+        items = (data or {}).get("calendarItems", []) or []
+        prefix = f"{year:04d}-{month:02d}-"
+        seen: set[tuple] = set()
+        result: list[dict[str, Any]] = []
+        for it in items:
+            d = it.get("date", "") or ""
+            if not d.startswith(prefix):
+                continue  # drop leading/trailing days from adjacent months
+            key = (d, it.get("itemType"), it.get("title"), it.get("id"))
+            if key in seen:
+                continue  # drop month-boundary duplicates
+            seen.add(key)
+            result.append(it)
+        return result
+
     def upload_workout(self, workout: dict[str, Any]) -> dict[str, Any]:
         """Upload a new workout to the Garmin workout library.
 

@@ -12,6 +12,7 @@ from garmin_connect_cli.commands import (
     activities,
     athlete,
     auth,
+    calendar,
     context,
     health,
     training,
@@ -136,6 +137,7 @@ app.add_typer(training.app, name="training", help="Training metrics (status, VO2
 app.add_typer(weight.app, name="weight", help="Weight and body composition")
 app.add_typer(context.app, name="context", help="Aggregated context for LLMs")
 app.add_typer(workouts.app, name="workouts", help="Workout library and calendar scheduling")
+app.add_typer(calendar.app, name="calendar", help="Training calendar, day by day")
 
 
 def error(message: str, exit_code: int = EXIT_ERROR) -> None:
