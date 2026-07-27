@@ -79,7 +79,11 @@ CREATE TABLE IF NOT EXISTS activities (
     hr_z4_s          REAL,
     hr_z5_s          REAL,
     raw_json         TEXT,
-    synced_at        TEXT
+    synced_at        TEXT,
+    -- NOTE: kept LAST to match _migrate()'s ALTER-appended position. The
+    -- activities INSERT is positional (VALUES (?,...)), so a migrated column
+    -- (appended at the end) and a fresh CREATE column must sit in the same slot.
+    avg_gct_balance_left REAL
 );
 
 CREATE TABLE IF NOT EXISTS health_daily (
@@ -171,6 +175,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     migrations = [
         "ALTER TABLE health_daily   ADD COLUMN stress           INTEGER",
         "ALTER TABLE training_daily ADD COLUMN training_status  TEXT",
+        "ALTER TABLE activities     ADD COLUMN avg_gct_balance_left REAL",
     ]
     for sql in migrations:
         with contextlib.suppress(Exception):  # column already exists
@@ -253,6 +258,9 @@ def _parse_activity(a: dict) -> tuple:
         a.get("hrTimeInZone_5"),
         json.dumps(a),
         now_iso(),
+        # avg_gct_balance_left — left-foot % of ground contact (HRM 600+ chest
+        # strap only; None on wrist-measured runs). Kept last to match schema.
+        a.get("avgGroundContactBalance"),
     )
 
 
@@ -270,7 +278,7 @@ def sync_activities(client: Garmin, conn: sqlite3.Connection, since: date) -> in
 
     conn.executemany(
         """INSERT OR REPLACE INTO activities VALUES
-           (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         [_parse_activity(a) for a in all_activities],
     )
     conn.commit()
@@ -785,11 +793,17 @@ def _running_metrics(activity_rows: list[dict]) -> dict:
     longest = max(runs, key=lambda a: a["distance_m"] or 0, default=None)
     hardest = max(runs, key=lambda a: a["training_load"] or 0, default=None)
 
+    # GCT L/R balance — chest-strap only (HRM 600+); None on wrist-measured runs.
+    # avg_gct_balance_left is the left-foot %; runs without it are excluded.
+    balances = [a["avg_gct_balance_left"] for a in runs if a.get("avg_gct_balance_left")]
+
     return {
         "total_km": round(total_km, 2),
         "total_runs": len(runs),
         "avg_hr": _avg([a["avg_hr"] for a in runs]),
         "avg_cadence": _avg(cadences),
+        "avg_gct_balance_left": _avg(balances),
+        "n_runs_with_balance": len(balances),
         "avg_pace_min_per_km": _avg(paces),
         "avg_aerobic_te": _avg([a["aerobic_te"] for a in runs]),
         "avg_training_load": _avg([a["training_load"] for a in runs]),
@@ -971,7 +985,7 @@ def summarize_activity(conn: sqlite3.Connection, activity_id: int) -> dict | Non
     row = conn.execute(
         """SELECT activity_id, start_time_local, activity_name, activity_type,
                   distance_m, duration_s, avg_hr, max_hr, avg_cadence,
-                  aerobic_te, anaerobic_te, training_load,
+                  aerobic_te, anaerobic_te, training_load, avg_gct_balance_left,
                   hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s
            FROM activities WHERE activity_id = ?""",
         (activity_id,),
@@ -1007,6 +1021,8 @@ def summarize_activity(conn: sqlite3.Connection, activity_id: int) -> dict | Non
         "avg_pace_min_per_km": round(dur_min / dist_km, 2) if dist_km else None,
         "hr_zone_pct": zone_pct,
         "hr_z3plus_pct": z3plus,
+        # Left-foot GCT %; None on wrist-measured runs (chest strap HRM 600+ only).
+        "avg_gct_balance_left": _rnd(r["avg_gct_balance_left"]),
     }
 
 
@@ -1132,7 +1148,8 @@ def compute_period_analysis(
                       activity_type, distance_m, duration_s, moving_time_s, avg_hr, max_hr,
                       avg_cadence, max_cadence, avg_speed_ms, calories, aerobic_te,
                       anaerobic_te, training_load, avg_gct_ms, avg_stride_m,
-                      avg_vert_osc_mm, hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s
+                      avg_vert_osc_mm, avg_gct_balance_left,
+                      hr_z1_s, hr_z2_s, hr_z3_s, hr_z4_s, hr_z5_s
                FROM activities
                WHERE start_time_local BETWEEN ? AND ? ORDER BY start_time_local""",
             (start_s, end_s + " 23:59:59"),

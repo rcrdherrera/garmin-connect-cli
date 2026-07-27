@@ -89,6 +89,7 @@ Per-day calls available on `client`:
 | `anaerobic_te` | `anaerobicTrainingEffect` |
 | `training_load` | `activityTrainingLoad` |
 | `avg_gct_ms` | `avgGroundContactTime` |
+| `avg_gct_balance_left` | `avgGroundContactBalance` (chest strap HRM 600+ only) |
 | `avg_stride_m` | `avgStrideLength` |
 | `hr_z1_s … hr_z5_s` | `hrTimeInZone_1 … hrTimeInZone_5` |
 | pace | derived: `1000 / averageSpeed` (m/s → s/km) |
@@ -143,6 +144,7 @@ State: date range, total days, data completeness (% days with health data, numbe
 - HR vs pace relationship (is pacing appropriate for zones?)
 - HR zone distribution: is polarization ratio correct for phase?
 - Ground contact time / stride length if available
+- **GCT L/R balance (`avg_gct_balance_left`, `n_runs_with_balance`):** chest-strap only (HRM 600, since 2026-07-25) — `None`/absent on older wrist-measured runs, so only interpret when `n_runs_with_balance > 0` and don't compare across the strap-change boundary. **PTT is on the LEFT leg**, so this is the injured-side asymmetry monitor: ~50% = symmetric (ideal); **L < ~48% = guarding/offloading the left PTT side (early warning, often precedes pain); L > ~52% = overloading the healing tendon.** A persistent drift in either direction is a red flag — cite it. Reference reading: 2026-07-25 30k = L 50.2% (symmetric under peak fatigue). See `training_history.md` Devices note.
 
 #### Strength & Cross-Training
 - Session count, frequency

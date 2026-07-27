@@ -53,7 +53,8 @@ uv run python garmin_db.py evaluate --format json
 ```
 
 - Defaults to the **most recent run** in the DB. Pass `--activity <id>` (from `$ARGUMENTS`) to target a specific activity, or `--date YYYY-MM-DD` to compute load metrics as-of a different day (defaults to the activity's own date).
-- Output JSON has three blocks: `activity` (incl. `hr_zone_pct` and `hr_z3plus_pct`), `load_metrics` (`acwr`, `ctl`, `atl`, `tsb`, `acute_load`, `chronic_load_weekly_avg`), and `recovery` (`health_recent`, `readiness_recent`).
+- Output JSON has three blocks: `activity` (incl. `hr_zone_pct`, `hr_z3plus_pct`, and `avg_gct_balance_left`), `load_metrics` (`acwr`, `ctl`, `atl`, `tsb`, `acute_load`, `chronic_load_weekly_avg`), and `recovery` (`health_recent`, `readiness_recent`).
+- **`avg_gct_balance_left`** — left-foot % of ground contact (chest strap HRM 600+, since 2026-07-25; `null` on older wrist-measured runs — skip the check when null). **PTT is on the LEFT leg**, so this is the injured-side monitor: ~50% = symmetric (good); **L < ~48% = guarding the PTT side (early warning, can precede pain); L > ~52% = overloading the healing tendon.** Flag a clear deviation in the report.
 
 ### Fetch the subjective self-assessment (feel/RPE)
 
@@ -223,6 +224,7 @@ Session: [name] · [distance] km · [duration] min
 PERFORMANCE
   HR avg:    [X] bpm  (target ≤ 162)   [✓ On target / ⚠ Over]
   Cadence:   [X] spm  (target 168-172)  [✓ / ⚠]
+  L/R bal:   [X]% L   (target ~50, PTT=left)  [✓ / ⚠ guard <48 / ⚠ overload >52 / — n/a]
   Feel:      [feel_label] · RPE [rpe_10]/10
   Load:      [training_load] AU
 

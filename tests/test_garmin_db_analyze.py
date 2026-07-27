@@ -251,6 +251,42 @@ class TestRunningMetrics:
         assert running["longest_run_km"] == pytest.approx(10.0)
         assert running["hardest_load_session"] == 100
 
+    def test_gct_balance_averages_only_runs_with_data(self, conn):
+        # Two runs with chest-strap balance, one wrist run without it.
+        _insert_activity(
+            conn,
+            1,
+            "2026-06-01 08:00:00",
+            "running",
+            distance_m=10000,
+            duration_s=3600,
+            avg_gct_balance_left=50.2,
+        )
+        _insert_activity(
+            conn,
+            2,
+            "2026-06-03 08:00:00",
+            "running",
+            distance_m=8000,
+            duration_s=2880,
+            avg_gct_balance_left=49.8,
+        )
+        _insert_activity(
+            conn,
+            3,
+            "2026-06-05 08:00:00",
+            "running",
+            distance_m=5000,
+            duration_s=1800,
+            avg_gct_balance_left=None,
+        )
+        conn.commit()
+        running = garmin_db.compute_period_analysis(
+            conn, date(2026, 6, 1), date(2026, 6, 5), metrics={"running"}
+        )["running"]
+        assert running["n_runs_with_balance"] == 2
+        assert running["avg_gct_balance_left"] == pytest.approx(50.0)
+
 
 class TestStrengthMetrics:
     def test_counts_and_loads(self, conn):
@@ -484,6 +520,26 @@ class TestSummarizeActivity:
         assert s["hr_zone_pct"]["z2_pct"] == 60.0
         assert s["hr_zone_pct"]["z3_pct"] == 30.0
         assert s["hr_z3plus_pct"] == 40.0  # (300+60+40)/1000
+
+    def test_gct_balance_surfaced_when_present(self, conn):
+        _insert_activity(
+            conn,
+            1,
+            "2026-06-01 08:00:00",
+            "running",
+            distance_m=10000,
+            duration_s=3000,
+            avg_gct_balance_left=50.2,
+        )
+        conn.commit()
+        assert garmin_db.summarize_activity(conn, 1)["avg_gct_balance_left"] == 50.2
+
+    def test_gct_balance_none_on_wrist_runs(self, conn):
+        _insert_activity(
+            conn, 1, "2026-06-01 08:00:00", "running", distance_m=10000, duration_s=3000
+        )
+        conn.commit()
+        assert garmin_db.summarize_activity(conn, 1)["avg_gct_balance_left"] is None
 
     def test_missing_activity_returns_none(self, conn):
         assert garmin_db.summarize_activity(conn, 999) is None
