@@ -33,6 +33,22 @@ originSessionId: a90608d6-6302-474f-8588-3a5db040d9c2
 ## Current Status (as of 2026-05-17)
 **PTT clearance achieved 2026-05-16. Phase 1 (Return to Run) is now active — Day 2.**
 
+## PTT "Healed / Discharged" Milestone — review 2026-09-27 (set 2026-07-18)
+
+**"Cleared to run" (2026-05-16) ≠ healed.** A tendon heals by criteria, not a calendar date. Target **discharge review: Sunday 2026-09-27** (~1 week post-Backyard; marathon + backyard + recovery all behind him; ~19 weeks post-clearance / ~5.5 months post-injury-stop — biologically sensible for tendon remodeling under progressive load, which runs ~3–6 months from when loading began). **This is a checkpoint, not a promise** — a PTT flare anywhere pushes it right; a clean build→marathon→backyard block holds it. The date exists to force an honest re-evaluation of how the tendon actually feels, against objective boxes — not to "declare victory" on schedule.
+
+Can call it **healed** only when ALL hold:
+1. **Symptom-free under real load** — zero PTT pain during runs, right after, AND next morning, across a sustained 6–8 week block that includes peak long runs (25–30k), tempo, and the marathon. (The eccentric *burn* in prehab is adaptation, not a symptom.)
+2. **Load test passed** — completed the marathon (2026-08-30) + its recovery with no flare, only normal next-day soreness.
+3. **Capacity + symmetry** — single-leg heel-raise ~25+ controlled reps/side, injured side within ~10% of the other; hip-abductor strength even L/R. (Objective options: physio test, or HRM-Pro ground-contact balance — see [[training-history]] devices note.)
+4. **Root cause locked in** — cadence habitually 168–172, stride controlled (overstriding gone, not masked).
+5. **Physio discharge sign-off** — the formal clinical call is the physio's, not the coach's. Open question to ask physio: *what is your objective discharge test (heel-raise reps / single-leg hop / imaging)?* so their criteria and ours align.
+
+Until 2026-09-27 review passes, keep the return-from-injury constraints on (deloads non-negotiable, 2×/week PTT eccentric loading per [[strength-scheduling-framework]], cadence discipline, HRV/ACWR gating).
+
+### PTT load-test log (against criterion #1 — symptom-free under real load)
+- **2026-07-25 — 30k long run + 3k tempo (peak long run of the build):** PARTIAL PASS. Executed superbly — cadence 168 held for the full 30k, HR Z2-controlled (avg 159), no PTT *pain* during or after. BUT PTT showed mild **swelling (no pain), iced same day** → tendon was at/just past its current load ceiling. Counts as a symptom under criterion #1, so the symptom-free clock is NOT yet clean. Also non-PTT: hip flexors clear (cadence fix working), late-run leg-pull fatigue + mild knee + quad DOMS = normal responses to a +38% single-run jump. Systemic recovery excellent (HRV rising 84→96, RHR flat 47). **Watch item: next-morning PTT state (2026-07-26+).** This 30k caused a +50% weekly-volume spike (ACWR ~1.4, above safe zone) → next week deliberately made recovery-leaning, hold 30k as the practical long-run ceiling, don't chase 32–35k.
+
 ## Periodization Structure (anchored to 2026-05-16 clearance)
 
 ### Phase 1 — Return to Run (May 16 – Jun 6, weeks 1–3)

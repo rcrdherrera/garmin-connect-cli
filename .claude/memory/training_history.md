@@ -45,10 +45,19 @@ originSessionId: 1b0e927b-c50b-4c47-9024-2de3141888bc
   - Low cadence at tempo pace is especially risky (Sep 2025: 146 spm at 5:07/km)
   - During ultras, cadence drops further with fatigue (Backyard: 142 spm)
   - March 2026 race hit 162 spm — capacity exists, just not trained
-- **Ground Contact Time: 280–310ms** (high side, especially on easy/treadmill runs)
+  - **DURABILITY BREAKTHROUGH (2026-07-25 30k): held 168 spm for the full 30k** with GCT 255ms, stride 93cm controlled, and **L/R ground-contact balance 50.2/49.8 (symmetric)** — cadence did NOT collapse with fatigue for the first time on a long run (contrast Backyard 142 spm), and the injured side showed no offloading. Strongest evidence yet that the structural PTT fix holds under real load, not just on fresh short runs. (This 30k = first run on the new HRM 600 chest strap — see Devices note; balance metric is now trackable every run.)
+- **Ground Contact Time: 280–310ms** (high side, especially on easy/treadmill runs; dropped to 255ms on the well-executed 2026-07-25 30k)
 - **Stride length: 99–117cm** — varies widely with pace
 - Recommended return cadence target: 168–172 spm (not jumping to 180 immediately)
 - Garmin metronome tool available: Training → Metronome
+
+## Devices & how metrics are measured (strap upgraded 2026-07-25)
+- **Watch: Garmin Fenix 8, 47mm AMOLED** (part `006-B4536-00`).
+- **Strap: Garmin HRM 600 (as of 2026-07-25)** — replaced the HRM-Dual, which is no longer used. The HRM 600 is a full running-dynamics chest strap (torso accelerometer), so **cadence + all running dynamics now come from the CHEST STRAP, not the wrist**. First run on it = the **2026-07-25 30k** (confirmed by `groundContactBalanceLeft` being populated for the first time; the wrist sensor can't produce GCT balance).
+- **NEW capability unlocked — GCT left/right balance** (previously flagged as wanting a chest strap for exactly this). This is the PTT-side asymmetry monitor. **PTT is on the LEFT leg** (confirmed 2026-07-26). **First reading (2026-07-25 30k): L 50.2% / R 49.8% — essentially perfect symmetry even at 30k under peak fatigue**, and the injured (left) side actually bears a hair *more*, not less → zero protective guarding. Strong durability signal. **Direction rules for future drift:** L dropping below ~48% = left/PTT side being *offloaded/guarded* (subconscious protection — early warning even before pain). L rising above ~52% = healing tendon being *overloaded*. Either persistent drift = investigate before it becomes re-injury.
+- **Where the data lives:** activity `summaryDTO` → `averageRunCadence`, `groundContactTime`, `groundContactBalanceLeft`, `strideLength`, `verticalOscillation`, `verticalRatio`. (Top-level `get_activity` keys like `avgRunCadence` return None — read `summaryDTO`.)
+- **Cadence caveat (still partly applies):** chest-strap cadence reflects true foot-strike (the old wrist "arm-stall while glancing at watch" artifact is gone — more reliable now). BUT session-average is still **diluted by walk/stop time** (e.g. city-crossing stops on long runs). Do NOT flag a low session-average as overstriding without checking moving time / max cadence / stride length first.
+- **Historical note:** runs *before* 2026-07-25 (incl. Jul 21/23) had wrist-based running dynamics + HRM-Dual for HR only — no balance data exists for them, and their cadence/GCT carry the wrist caveats above.
 
 ## Fitness Markers (peak and current)
 - **Peak fitness: March 2026** — RHR 41 bpm, HRV 97ms/93 weekly avg, 5:00/km race pace
